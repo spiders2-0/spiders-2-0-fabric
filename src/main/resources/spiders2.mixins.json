@@ -1,0 +1,19 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.lily56.spiders2.mixins",
+  "compatibilityLevel": "JAVA_16",
+  "mixins": [
+    "EntityMixin",
+    "LivingEntityMixin",
+    "MobEntityMixin",
+    "ClimberEntityMixin",
+    "BetterSpiderEntityMixin"
+  ],
+  "client": [
+    "LivingEntityClientMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "id": "spiders2",
+  "version": "${version}",
+
+  "name": "Spiders 2.0",
+  "description": "This is an example description! Tell everyone what your mod is about!",
+  "authors": [
+    "Me!"
+  ],
+  "contact": {
+    "homepage": "https://fabricmc.net/",
+    "sources": "https://github.com/FabricMC/fabric-example-mod"
+  },
+
+  "license": "CC0-1.0",
+  "icon": "assets/spiders2/icon.png",
+
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.lily56.spiders2.Spiders2"
+    ]
+  },
+  "mixins": [
+    "spiders2.mixins.json"
+  ],
+
+  "depends": {
+    "fabricloader": ">=0.11.3",
+    "fabric": "*",
+    "minecraft": "1.17.x",
+    "java": ">=16"
+  },
+  "suggests": {
+
+  }
+}
