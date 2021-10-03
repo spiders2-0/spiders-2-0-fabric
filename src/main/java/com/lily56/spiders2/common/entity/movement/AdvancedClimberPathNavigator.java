@@ -1,17 +1,17 @@
 package com.lily56.spiders2.common.entity.movement;
 
-import javax.annotation.Nullable;
+import org.jetbrains.annotations.Nullable;
 
 import com.google.common.collect.ImmutableSet;
 
 import net.minecraft.block.BlockState;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.entity.ai.control.MovemControl;
-import net.minecraft.network.DebugPacketSender;
-import net.minecraft.pathfinding.Path;
-import net.minecraft.pathfinding.PathNodeType;
-import net.minecraft.pathfinding.PathPoint;
+import net.minecraft.entity.ai.control.MoveControl;
+import net.minecraft.server.network.DebugInfoSender;
+import net.minecraft.entity.ai.pathing.Path;
+import net.minecraft.entity.ai.pathing.PathNodeType;
+import net.minecraft.entity.ai.pathing.PathNode;
 import net.minecraft.pathfinding.PathType;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
@@ -22,14 +22,13 @@ import net.minecraft.world.BlockView;
 import net.minecraft.world.World;
 import com.lily56.spiders2.common.entity.mob.IClimberEntity;
 import com.lily56.spiders2.common.entity.mob.Orientation;
-import org.jetbrains.annotations.Nullable;
 
 public class AdvancedClimberPathNavigator<T extends MobEntity & IClimberEntity> extends AdvancedGroundPathNavigator<T> {
 	protected final IClimberEntity climber;
 
 	protected Direction verticalFacing = Direction.DOWN;
 
-	protected boolean findDirectPathPoints = false;
+	protected boolean findDirectPathNodes = false;
 
 	public AdvancedClimberPathNavigator(T entity, World worldIn, boolean checkObstructions, boolean canPathWalls, boolean canPathCeiling) {
 		super(entity, worldIn, checkObstructions);
@@ -81,15 +80,15 @@ public class AdvancedClimberPathNavigator<T extends MobEntity & IClimberEntity> 
 				}
 			}
 
-			DebugPacketSender.sendPath(this.world, this.entity, this.currentPath, this.maxDistanceToWaypoint);
+			DebugInfoSender.sendPath(this.world, this.entity, this.currentPath, this.maxDistanceToWaypoint);
 
 			if(!this.noPath()) {
-				PathPoint targetPoint = this.currentPath.getPathPointFromIndex(this.currentPath.getCurrentPathIndex());
+				PathNode targetPoint = this.currentPath.getPathNodeFromIndex(this.currentPath.getCurrentPathIndex());
 
 				Direction dir = null;
 
-				if(targetPoint instanceof DirectionalPathPoint) {
-					dir = ((DirectionalPathPoint) targetPoint).getPathSide();
+				if(targetPoint instanceof DirectionalPathNode) {
+					dir = ((DirectionalPathNode) targetPoint).getPathSide();
 				}
 
 				if(dir == null) {
@@ -98,10 +97,10 @@ public class AdvancedClimberPathNavigator<T extends MobEntity & IClimberEntity> 
 
 				Vec3d targetPos = this.getExactPathingTarget(this.world, targetPoint.func_224759_a(), dir);
 
-				MovementController moveController = this.entity.getMoveHelper();
+				MoveControl moveController = this.entity.getMoveHelper();
 
-				if(moveController instanceof ClimberMoveController && targetPoint instanceof DirectionalPathPoint && ((DirectionalPathPoint) targetPoint).getPathSide() != null) {
-					((ClimberMoveController) moveController).setMoveTo(targetPos.x, targetPos.y, targetPos.z, targetPoint.func_224759_a().offset(dir), ((DirectionalPathPoint) targetPoint).getPathSide(), this.speed);
+				if(moveController instanceof ClimberMoveController && targetPoint instanceof DirectionalPathNode && ((DirectionalPathNode) targetPoint).getPathSide() != null) {
+					((ClimberMoveController) moveController).setMoveTo(targetPos.x, targetPos.y, targetPos.z, targetPoint.func_224759_a().offset(dir), ((DirectionalPathNode) targetPoint).getPathSide(), this.speed);
 				} else {
 					moveController.setMoveTo(targetPos.x, targetPos.y, targetPos.z, this.speed);
 				}
@@ -109,7 +108,7 @@ public class AdvancedClimberPathNavigator<T extends MobEntity & IClimberEntity> 
 		}
 	}
 
-	public Vec3d getExactPathingTarget(IBlockReader blockaccess, BlockPos pos, Direction dir) {
+	public Vec3d getExactPathingTarget(BlockView blockaccess, BlockPos pos, Direction dir) {
 		BlockPos offsetPos = pos.offset(dir);
 
 		VoxelShape shape = blockaccess.getBlockState(offsetPos).getCollisionShape(blockaccess, offsetPos);
@@ -170,8 +169,8 @@ public class AdvancedClimberPathNavigator<T extends MobEntity & IClimberEntity> 
 				boolean isOnSameSideAsTarget = false;
 				if(this.getCanSwim() && (currentTarget.nodeType == PathNodeType.WATER || currentTarget.nodeType == PathNodeType.WATER_BORDER || currentTarget.nodeType == PathNodeType.LAVA)) {
 					isOnSameSideAsTarget = true;
-				} else if(currentTarget instanceof DirectionalPathPoint) {
-					Direction targetSide = ((DirectionalPathPoint) currentTarget).getPathSide();
+				} else if(currentTarget instanceof DirectionalPathNode) {
+					Direction targetSide = ((DirectionalPathNode) currentTarget).getPathSide();
 					isOnSameSideAsTarget = targetSide == null || this.climber.getGroundDirection().getLeft() == targetSide;
 				} else {
 					isOnSameSideAsTarget = true;

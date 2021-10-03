@@ -8,11 +8,11 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import com.lily56.spiders2.common.entity.mob.IClimberEntity;
 
-public class BetterSpiderPathNavigator<T extends MobEntity & IClimberEntity> extends AdvancedClimberPathNavigator<T> {
+public class BetterSpiderEntityNavigation<T extends MobEntity & IClimberEntity> extends AdvancedClimberPathNavigator<T> {
 	private boolean useVanillaBehaviour;
 	private BlockPos targetPosition;
 
-	public BetterSpiderPathNavigator(T entity, World worldIn, boolean useVanillaBehaviour) {
+	public BetterSpiderEntityNavigation(T entity, World worldIn, boolean useVanillaBehaviour) {
 		super(entity, worldIn, false, true, true);
 		this.useVanillaBehaviour = useVanillaBehaviour;
 	}

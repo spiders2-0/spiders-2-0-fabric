@@ -20,18 +20,18 @@ import net.minecraft.util.math.BlockPos;
 public class AdvancedPathFinder extends CustomPathNodeNavigator {
 	private static class Node {
 		private final Node previous;
-		private final DirectionalPathPoint pathPoint;
+		private final DirectionalPathNode pathPoint;
 		private final Direction side;
 		private final int depth;
 
-		private Node(@Nullable Node previous, DirectionalPathPoint pathPoint) {
+		private Node(@Nullable Node previous, DirectionalPathNode pathPoint) {
 			this.previous = previous;
 			this.depth = previous != null ? previous.depth + 1 : 0;
 			this.pathPoint = pathPoint;
 			this.side = pathPoint.getPathSide();
 		}
 
-		private Node(Node previous, int depth, DirectionalPathPoint pathPoint) {
+		private Node(Node previous, int depth, DirectionalPathNode pathPoint) {
 			this.previous = previous;
 			this.depth = depth;
 			this.pathPoint = pathPoint;
@@ -121,7 +121,7 @@ public class AdvancedPathFinder extends CustomPathNodeNavigator {
 		}
 	}
 
-	private static Direction[] getPathableSidesWithFallback(DirectionalPathPoint point) {
+	private static Direction[] getPathableSidesWithFallback(DirectionalPathNode point) {
 		if(point.getPathableSides().length == 0) {
 			return DOWN;
 		} else {
@@ -129,7 +129,7 @@ public class AdvancedPathFinder extends CustomPathNodeNavigator {
 		}
 	}
 
-	private static boolean isOmnidirectionalPoint(DirectionalPathPoint point) {
+	private static boolean isOmnidirectionalPoint(DirectionalPathNode point) {
 		return point.nodeType == PathNodeType.WATER || point.nodeType == PathNodeType.LAVA;
 	}
 
@@ -140,7 +140,7 @@ public class AdvancedPathFinder extends CustomPathNodeNavigator {
 
 		final Deque<Node> queue = new LinkedList<>();
 
-		final DirectionalPathPoint targetPoint = this.ensureDirectional(points.get(0));
+		final DirectionalPathNode targetPoint = this.ensureDirectional(points.get(0));
 
 		for(Direction direction : getPathableSidesWithFallback(targetPoint)) {
 			queue.add(new Node(null, targetPoint.assignPathSide(direction)));
@@ -166,7 +166,7 @@ public class AdvancedPathFinder extends CustomPathNodeNavigator {
 
 			Direction currentSide = current.side;
 
-			DirectionalPathPoint next = this.ensureDirectional(points.get(current.depth + 1));
+			DirectionalPathNode next = this.ensureDirectional(points.get(current.depth + 1));
 
 			for(Direction nextSide : getPathableSidesWithFallback(next)) {
 				Node nextNode = null;
@@ -257,11 +257,11 @@ public class AdvancedPathFinder extends CustomPathNodeNavigator {
 		return end;
 	}
 
-	private DirectionalPathPoint ensureDirectional(PathNode point) {
-		if(point instanceof DirectionalPathPoint) {
-			return (DirectionalPathPoint) point;
+	private DirectionalPathNode ensureDirectional(PathNode point) {
+		if(point instanceof DirectionalPathNode) {
+			return (DirectionalPathNode) point;
 		} else {
-			return new DirectionalPathPoint(point);
+			return new DirectionalPathNode(point);
 		}
 	}
 }

@@ -15,20 +15,15 @@ import net.minecraft.entity.EntityType;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.attribute.EntityAttributeModifier;
 import net.minecraft.entity.attribute.EntityAttributes;
-import net.minecraft.entity.attribute.EntityAttributeInstance;
 import net.minecraft.entity.ai.goal.Goal;
 import net.minecraft.entity.ai.goal.GoalSelector;
 import net.minecraft.entity.ai.goal.PounceAtTargetGoal;
 import net.minecraft.entity.ai.goal.TrackTargetGoal;
 import net.minecraft.entity.mob.SpiderEntity;
-import net.minecraft.entity.ai.pathing.Path;
-import net.minecraft.entity.ai.pathing.PathNode;
 import net.minecraft.entity.ai.pathing.PathNodeType;
 import net.minecraft.entity.ai.pathing.EntityNavigation;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3i;
-import net.minecraft.world.BlockView;
 import net.minecraft.world.World;
 import com.lily56.spiders2.common.Config;
 import com.lily56.spiders2.common.ModTags;
@@ -36,8 +31,7 @@ import com.lily56.spiders2.common.entity.goal.BetterLeapAtTargetGoal;
 import com.lily56.spiders2.common.entity.mob.IClimberEntity;
 import com.lily56.spiders2.common.entity.mob.IMobEntityNavigatorHook;
 import com.lily56.spiders2.common.entity.mob.IMobEntityRegisterGoalsHook;
-import com.lily56.spiders2.common.entity.movement.BetterSpiderPathNavigator;
-import com.lily56.spiders2.common.entity.movement.DirectionalPathPoint;
+import com.lily56.spiders2.common.entity.movement.BetterSpiderEntityNavigation;
 
 @Mixin(value = SpiderEntity.class, priority = 1001)
 public abstract class BetterSpiderEntityMixin extends HostileEntity implements IClimberEntity, IMobEntityRegisterGoalsHook, IMobEntityNavigatorHook {
@@ -58,7 +52,7 @@ public abstract class BetterSpiderEntityMixin extends HostileEntity implements I
 
 	@Override
 	public EntityNavigation onCreateNavigator(World world) {
-		BetterSpiderPathNavigator<BetterSpiderEntityMixin> navigate = new BetterSpiderPathNavigator<>(this, world, false);
+		BetterSpiderEntityNavigation<BetterSpiderEntityMixin> navigate = new BetterSpiderEntityNavigation<>(this, world, false);
 		navigate.setCanSwim(true);
 		return navigate;
 	}
