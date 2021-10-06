@@ -2,13 +2,13 @@ package com.lily56.spiders2.common.entity.movement;
 
 import java.util.EnumSet;
 
-import javax.annotation.Nullable;
+import org.jetbrains.annotations.Nullable;
 
-import net.minecraft.pathfinding.PathPoint;
-import net.minecraft.util.Direction;
+import net.minecraft.entity.ai.pathing.PathNode;
+import net.minecraft.util.math.Direction;
 
-public class DirectionalPathNode extends PathPoint {
-	protected static final long ALL_DIRECTIONS = AdvancedWalkNodeProcessor.packDirection(Direction.UP, AdvancedWalkNodeProcessor.packDirection(Direction.DOWN, AdvancedWalkNodeProcessor.packDirection(Direction.NORTH, AdvancedWalkNodeProcessor.packDirection(Direction.EAST, AdvancedWalkNodeProcessor.packDirection(Direction.SOUTH, AdvancedWalkNodeProcessor.packDirection(Direction.WEST, 0L))))));
+public class DirectionalPathNode extends PathNode {
+	protected static final long ALL_DIRECTIONS = AdvancedLandPathNodeMaker.packDirection(Direction.UP, AdvancedLandPathNodeMaker.packDirection(Direction.DOWN, AdvancedLandPathNodeMaker.packDirection(Direction.NORTH, AdvancedLandPathNodeMaker.packDirection(Direction.EAST, AdvancedLandPathNodeMaker.packDirection(Direction.SOUTH, AdvancedLandPathNodeMaker.packDirection(Direction.WEST, 0L))))));
 
 	protected static final Direction[] DIRECTIONS = Direction.values();
 
@@ -24,7 +24,7 @@ public class DirectionalPathNode extends PathPoint {
 		for(int i = 0; i < DIRECTIONS.length; i++) {
 			Direction dir = DIRECTIONS[i];
 
-			if(AdvancedWalkNodeProcessor.unpackDirection(dir, packed)) {
+			if(AdvancedLandPathNodeMaker.unpackDirection(dir, packed)) {
 				directionsSet.add(dir);
 			}
 		}
@@ -35,7 +35,7 @@ public class DirectionalPathNode extends PathPoint {
 		this.isDrop = isDrop;
 	}
 
-	public DirectionalPathNode(PathPoint point, long packed, boolean isDrop) {
+	public DirectionalPathNode(PathNode point, long packed, boolean isDrop) {
 		this(point.x, point.y, point.z, packed, isDrop);
 
 		this.index = point.index;
@@ -49,7 +49,7 @@ public class DirectionalPathNode extends PathPoint {
 		this.nodeType = point.nodeType;
 	}
 
-	public DirectionalPathNode(PathPoint point) {
+	public DirectionalPathNode(PathNode point) {
 		this(point, ALL_DIRECTIONS, false);
 	}
 
@@ -64,7 +64,7 @@ public class DirectionalPathNode extends PathPoint {
 		this.isDrop = isDrop;
 	}
 
-	public DirectionalPathNode(PathPoint point, Direction pathSide) {
+	public DirectionalPathNode(PathNode point, Direction pathSide) {
 		super(point.x, point.y, point.z);
 
 		this.index = point.index;
@@ -98,18 +98,18 @@ public class DirectionalPathNode extends PathPoint {
 	}
 
 	@Override
-	public PathPoint cloneMove(int x, int y, int z) {
-		PathPoint pathPoint = new DirectionalPathNode(x, y, z, this.pathableSides, this.pathSide, this.isDrop);
-		pathPoint.index = this.index;
-		pathPoint.totalPathDistance = this.totalPathDistance;
-		pathPoint.distanceToNext = this.distanceToNext;
-		pathPoint.distanceToTarget = this.distanceToTarget;
-		pathPoint.previous = this.previous;
-		pathPoint.visited = this.visited;
-		pathPoint.field_222861_j = this.field_222861_j;
-		pathPoint.costMalus = this.costMalus;
-		pathPoint.nodeType = this.nodeType;
-		return pathPoint;
+	public PathNode cloneMove(int x, int y, int z) {
+		PathNode pathNode = new DirectionalPathNode(x, y, z, this.pathableSides, this.pathSide, this.isDrop);
+		pathNode.index = this.index;
+		pathNode.totalPathDistance = this.totalPathDistance;
+		pathNode.distanceToNext = this.distanceToNext;
+		pathNode.distanceToTarget = this.distanceToTarget;
+		pathNode.previous = this.previous;
+		pathNode.visited = this.visited;
+		pathNode.field_222861_j = this.field_222861_j;
+		pathNode.costMalus = this.costMalus;
+		pathNode.nodeType = this.nodeType;
+		return pathNode;
 	}
 
 	/**

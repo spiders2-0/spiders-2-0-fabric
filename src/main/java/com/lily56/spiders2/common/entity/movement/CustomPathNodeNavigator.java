@@ -22,7 +22,7 @@ import net.minecraft.entity.ai.pathing.Path;
 import net.minecraft.entity.ai.pathing.PathNodeNavigator;
 import net.minecraft.entity.ai.pathing.PathMinHeap;
 import net.minecraft.entity.ai.pathing.PathNode;
-
+import net.minecraft.world.chunk.ChunkCache;
 /*
 import net.minecraft.pathfinding.FlaggedPathPoint;
 import net.minecraft.pathfinding.NodeProcessor;
@@ -46,7 +46,7 @@ public class CustomPathNodeNavigator extends PathNodeNavigator {
 		public float compute(PathNode start, PathNode end, boolean isTargetHeuristic);
 	}
 
-	public static final Heuristic DEFAULT_HEURISTIC = (start, end, isTargetHeuristic) -> start.func_224757_c(end); //distanceManhattan
+	public static final Heuristic DEFAULT_HEURISTIC = (start, end, isTargetHeuristic) -> start.getManhattanDistance(end); //distanceManhattan
 
 	private Heuristic heuristic = DEFAULT_HEURISTIC;
 
@@ -71,11 +71,10 @@ public class CustomPathNodeNavigator extends PathNodeNavigator {
 	}
 
 	@Nullable
-	@Override
-	public Path func_227478_a_(Region region, MobEntity entity, Set<BlockPos> checkpoints, float maxDistance, int checkpointRange, float maxExpansionsMultiplier) {
+	public Path NewPath(ChunkCache region, MobEntity entity, Set<BlockPos> checkpoints, float maxDistance, int checkpointRange, float maxExpansionsMultiplier) {
 		this.path.clearPath();
 
-		this.PathNodeMaker.func_225578_a_(region, entity);
+		this.PathNodeMaker.init(region, entity);
 
 		PathNode pathnode = this.PathNodeMaker.getStart();
 

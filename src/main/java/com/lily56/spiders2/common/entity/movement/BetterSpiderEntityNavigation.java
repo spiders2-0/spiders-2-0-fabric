@@ -30,26 +30,26 @@ public class BetterSpiderEntityNavigation<T extends MobEntity & IClimberEntity> 
 	}
 
 	@Override
-	public boolean tryMoveToEntityLiving(Entity entityIn, double speedIn) {
+	public boolean tryMoveToEntityLiving(Entity entityIn, double speed) {
 		Path path = this.getPathToEntity(entityIn, 0);
 		if(path != null) {
-			return this.(path, speedIn);
+			return this.startMovingAlong(path, speed);
 		} else {
 			this.targetPosition = entityIn.getBlockPos();
-			this.speed = speedIn;
+			this.speed = speed;
 			return true;
 		}
 	}
 
 	@Override
 	public void tick() {
-		if(!this.noPath()) {
+		if(!this.isIdle()) {
 			super.tick();
 		} else {
 			if(this.targetPosition != null && this.useVanillaBehaviour) {
 				// FORGE: Fix MC-94054
-				if(!this.targetPosition.withinDistance(this.entity.getPositionVec(), Math.max((double) this.entity.getWidth(), 1.0D)) && (!(this.entity.getPosY() > (double) this.targetPosition.getY()) || !(new BlockPos((double) this.targetPosition.getX(), this.entity.getPosY(), (double) this.targetPosition.getZ())).withinDistance(this.entity.getPositionVec(), Math.max((double) this.entity.getWidth(), 1.0D)))) {
-					this.entity.getMoveHelper().setMoveTo((double) this.targetPosition.getX(), (double) this.targetPosition.getY(), (double) this.targetPosition.getZ(), this.speed);
+				if(!this.targetPosition.isWithinDistance(this.entity.getPos(), Math.max((double) this.entity.getWidth(), 1.0D)) && (!(this.entity.getY() > (double) this.targetPosition.getY()) || !(new BlockPos((double) this.targetPosition.getX(), this.entity.getY(), (double) this.targetPosition.getZ())).isWithinDistance(this.entity.getPos(), Math.max((double) this.entity.getWidth(), 1.0D)))) {
+					this.entity.getMoveControl().moveTo((double) this.targetPosition.getX(), (double) this.targetPosition.getY(), (double) this.targetPosition.getZ(), this.speed);
 				} else {
 					this.targetPosition = null;
 				}

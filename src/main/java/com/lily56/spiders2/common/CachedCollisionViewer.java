@@ -16,19 +16,20 @@ import net.minecraft.world.BlockView;
 import net.minecraft.world.border.WorldBorder;
 
 import net.minecraft.util.math.Box;
+import org.jetbrains.annotations.Nullable;
 
-public class CachedCollisionReader implements CollisionView {
+public class CachedCollisionViewer implements CollisionView {
 	private final CollisionView collisionReader;
 	private final BlockView[] blockReaderCache;
 	private final int minChunkX, minChunkZ, width;
 
-	public CachedCollisionReader(CollisionView collisionReader, Box aabb) {
-		this.collisionReader = collisionReader;
+	public CachedCollisionViewer(CollisionView collisionViewer, Box box) {
+		this.collisionReader = collisionViewer;
 
-		this.minChunkX = ((MathHelper.floor(aabb.minX - 1.0E-7D) - 1) >> 4);
-		int maxChunkX = ((MathHelper.floor(aabb.maxX + 1.0E-7D) + 1) >> 4);
-		this.minChunkZ = ((MathHelper.floor(aabb.minZ - 1.0E-7D) - 1) >> 4);
-		int maxChunkZ = ((MathHelper.floor(aabb.maxZ + 1.0E-7D) + 1) >> 4);
+		this.minChunkX = ((MathHelper.floor(box.minX - 1.0E-7D) - 1) >> 4);
+		int maxChunkX = ((MathHelper.floor(box.maxX + 1.0E-7D) + 1) >> 4);
+		this.minChunkZ = ((MathHelper.floor(box.minZ - 1.0E-7D) - 1) >> 4);
+		int maxChunkZ = ((MathHelper.floor(box.maxZ + 1.0E-7D) + 1) >> 4);
 
 		this.width = maxChunkX - this.minChunkX + 1;
 		int depth = maxChunkZ - this.minChunkZ + 1;
@@ -37,7 +38,7 @@ public class CachedCollisionReader implements CollisionView {
 
 		for(int cx = minChunkX; cx <= maxChunkX; cx++) {
 			for(int cz = minChunkZ; cz <= maxChunkZ; cz++) {
-				blockReaderCache[(cx - minChunkX) + (cz - minChunkZ) * width] = collisionReader.getChunkAsView(cx, cz);
+				blockReaderCache[(cx - minChunkX) + (cz - minChunkZ) * width] = collisionViewer.getChunkAsView(cx, cz);
 			}
 		}
 
@@ -47,6 +48,12 @@ public class CachedCollisionReader implements CollisionView {
 	@Override
 	public BlockEntity getTileEntity(BlockPos pos) {
 		return this.collisionReader.getBlockEntity(pos);
+	}
+
+	@Nullable
+	@Override
+	public BlockEntity getBlockEntity(BlockPos pos) {
+		return null;
 	}
 
 	@Override
@@ -64,6 +71,14 @@ public class CachedCollisionReader implements CollisionView {
 		return this.collisionReader.getWorldBorder();
 	}
 
+	//TODO: Do not return 0
+	@Nullable
+	@Override
+	public BlockView getChunkAsView(int chunkX, int chunkZ) {
+		return null;
+	}
+	//
+
 	@Override
 	public Stream<VoxelShape> getEntityCollisions(Entity entity, Box aabb, Predicate<Entity> predicate) {
 		return this.collisionReader.getEntityCollisions(entity, aabb, predicate);
@@ -73,4 +88,15 @@ public class CachedCollisionReader implements CollisionView {
 	public BlockView getBlockReader(int chunkX, int chunkZ) {
 		return this.blockReaderCache[(chunkX - minChunkX) + (chunkZ - minChunkZ) * width];
 	}
+	//TODO: Do not return 0
+	@Override
+	public int getHeight() {
+		return 0;
+	}
+
+	@Override
+	public int getBottomY() {
+		return 0;
+	}
+	//
 }

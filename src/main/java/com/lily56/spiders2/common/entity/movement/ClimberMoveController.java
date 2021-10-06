@@ -3,13 +3,11 @@ package com.lily56.spiders2.common.entity.movement;
 import net.minecraft.entity.ai.pathing.PathNodeType;
 import org.jetbrains.annotations.Nullable;
 
-import net.minecraft.entity.Entity;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.ai.control.JumpControl;
 import net.minecraft.entity.ai.control.MoveControl;
 import net.minecraft.entity.ai.pathing.PathNodeMaker;
 import net.minecraft.entity.ai.pathing.EntityNavigation;
-import net.minecraft.entity.ai.pathing.PathNode;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
@@ -85,7 +83,7 @@ public class ClimberMoveController<T extends MobEntity & IClimberEntity> extends
 			if(this.side != null && this.block != null) {
 				VoxelShape shape = this.entity.world.getBlockState(this.block).getCollisionShape(this.entity.world, this.block);
 
-				Box aabb = this.entity.getBoundingBox();
+				Box box = this.entity.getBoundingBox();
 
 				double ox = 0;
 				double oy = 0;
@@ -94,32 +92,32 @@ public class ClimberMoveController<T extends MobEntity & IClimberEntity> extends
 				//Use offset towards pathing side if mob is above that pathing side
 				switch(this.side) {
 				case DOWN:
-					if(aabb.minY >= this.block.getY() + shape.getMax(Direction.Axis.Y) - 0.01D) {
+					if(box.minY >= this.block.getY() + shape.getMax(Direction.Axis.Y) - 0.01D) {
 						ox -= 0.1D;
 					}
 					break;
 				case UP:
-					if(aabb.maxY <= this.block.getY() + shape.getMin(Direction.Axis.Y) + 0.01D) {
+					if(box.maxY <= this.block.getY() + shape.getMin(Direction.Axis.Y) + 0.01D) {
 						oy += 0.1D;
 					}
 					break;
 				case WEST:
-					if(aabb.minX >= this.block.getX() + shape.getMax(Direction.Axis.X) - 0.01D) {
+					if(box.minX >= this.block.getX() + shape.getMax(Direction.Axis.X) - 0.01D) {
 						ox -= 0.1D;
 					}
 					break;
 				case EAST:
-					if(aabb.maxX <= this.block.getX() + shape.getMin(Direction.Axis.X) + 0.01D) {
+					if(box.maxX <= this.block.getX() + shape.getMin(Direction.Axis.X) + 0.01D) {
 						ox += 0.1D;
 					}
 					break;
 				case NORTH:
-					if(aabb.minZ >= this.block.getZ() + shape.getMax(Direction.Axis.Z) - 0.01D) {
+					if(box.minZ >= this.block.getZ() + shape.getMax(Direction.Axis.Z) - 0.01D) {
 						oz -= 0.1D;
 					}
 					break;
 				case SOUTH:
-					if(aabb.maxZ <= this.block.getZ() + shape.getMin(Direction.Axis.Z) + 0.01D) {
+					if(box.maxZ <= this.block.getZ() + shape.getMin(Direction.Axis.Z) + 0.01D) {
 						oz += 0.1D;
 					}
 					break;
@@ -128,7 +126,7 @@ public class ClimberMoveController<T extends MobEntity & IClimberEntity> extends
 				Box blockAabb = new Box(this.block.offset(this.side.getOpposite()));
 
 				//If mob is on the pathing side block then only apply the offsets if the block is above the according side of the voxel shape
-				if(aabb.intersects(blockAabb)) {
+				if(box.intersects(blockAabb)) {
 					Direction.Axis offsetAxis = this.side.getAxis();
 					double offset;
 
@@ -145,36 +143,36 @@ public class ClimberMoveController<T extends MobEntity & IClimberEntity> extends
 						break;
 					}
 
-					double allowedOffset = shape.calculateMaxDistance(offsetAxis, aabb.offset(-this.block.getX(), -this.block.getY(), -this.block.getZ()), offset);
+					double allowedOffset = shape.calculateMaxDistance(offsetAxis, box.offset(-this.block.getX(), -this.block.getY(), -this.block.getZ()), offset);
 
 					switch(this.side) {
 					case DOWN:
-						if(aabb.minY + allowedOffset < this.block.getY() + shape.getMax(Direction.Axis.Y) - 0.01D) {
+						if(box.minY + allowedOffset < this.block.getY() + shape.getMax(Direction.Axis.Y) - 0.01D) {
 							oy = 0;
 						}
 						break;
 					case UP:
-						if(aabb.maxY + allowedOffset > this.block.getY() + shape.getMin(Direction.Axis.Y) + 0.01D) {
+						if(box.maxY + allowedOffset > this.block.getY() + shape.getMin(Direction.Axis.Y) + 0.01D) {
 							oy = 0;
 						}
 						break;
 					case WEST:
-						if(aabb.minX + allowedOffset < this.block.getX() + shape.getMax(Direction.Axis.X) - 0.01D) {
+						if(box.minX + allowedOffset < this.block.getX() + shape.getMax(Direction.Axis.X) - 0.01D) {
 							ox = 0;
 						}
 						break;
 					case EAST:
-						if(aabb.maxX + allowedOffset > this.block.getX() + shape.getMin(Direction.Axis.X) + 0.01D) {
+						if(box.maxX + allowedOffset > this.block.getX() + shape.getMin(Direction.Axis.X) + 0.01D) {
 							ox = 0;
 						}
 						break;
 					case NORTH:
-						if(aabb.minZ + allowedOffset < this.block.getZ() + shape.getMax(Direction.Axis.Z) - 0.01D) {
+						if(box.minZ + allowedOffset < this.block.getZ() + shape.getMax(Direction.Axis.Z) - 0.01D) {
 							oz = 0;
 						}
 						break;
 					case SOUTH:
-						if(aabb.maxZ + allowedOffset > this.block.getZ() + shape.getMin(Direction.Axis.Z) + 0.01D) {
+						if(box.maxZ + allowedOffset > this.block.getZ() + shape.getMin(Direction.Axis.Z) + 0.01D) {
 							oz = 0;
 						}
 						break;
@@ -255,7 +253,7 @@ public class ClimberMoveController<T extends MobEntity & IClimberEntity> extends
 					JumpControl jumpController = this.entity.getJumpControl();
 
 					if(jumpController instanceof ClimberJumpController) {
-						((ClimberJumpController) jumpController).setJumping(jumpDir);
+						((ClimberJumpController) jumpController).setActive(jumpDir);
 					}
 				} else {
 					this.entity.setMovementSpeed((float) speed);

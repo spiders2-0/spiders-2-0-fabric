@@ -17,7 +17,7 @@ import com.lily56.spiders2.common.entity.mob.ILivingEntityTravelHook;
 
 @Mixin(LivingEntity.class)
 public abstract class LivingEntityMixin implements ILivingEntityLookAtHook, ILivingEntityDataManagerHook, ILivingEntityTravelHook, ILivingEntityJumpHook {
-	@ModifyVariable(method = "lookAt(Lnet/minecraft/command/argument/EntityAnchorArgumentType;Lnet/minecraft/util/math/Vec3d;)V", at = @At("HEAD"), ordinal = 0)
+	@ModifyVariable(method = "lookAt(Lnet/minecraft/command/argument/EntityAnchorArgumentType$EntityAnchor;Lnet/minecraft/util/math/Vec3d;)V", at = @At("HEAD"), ordinal = 0)
 	private Vec3d onLookAtModify(Vec3d vec, EntityAnchorArgumentType anchor, Vec3d vec2) {
 		return this.onLookAt(anchor, vec);
 	}
@@ -27,7 +27,7 @@ public abstract class LivingEntityMixin implements ILivingEntityLookAtHook, ILiv
 		return vec;
 	}
 
-	@Inject(method = "notifyDataManagerChange(Lnet/minecraft/entity/data/TrackedData;)V", at = @At("HEAD"))
+	@Inject(method = "onTrackedDataSet(Lnet/minecraft/entity/data/TrackedData;)V", at = @At("HEAD"))
 	private void onNotifyDataManagerChange(TrackedData<?> key, CallbackInfo ci) {
 		this.onNotifyDataManagerChange(key);
 	}
@@ -35,14 +35,14 @@ public abstract class LivingEntityMixin implements ILivingEntityLookAtHook, ILiv
 	@Override
 	public void onNotifyDataManagerChange(TrackedData<?> key) { }
 
-	@Inject(method = "travel(Lnet/minecraft/util/math/vector/Vec3d;)V", at = @At("HEAD"), cancellable = true)
+	@Inject(method = "travel(Lnet/minecraft/util/math/Vec3d;)V", at = @At("HEAD"), cancellable = true)
 	private void onTravelPre(Vec3d relative, CallbackInfo ci) {
 		if(this.onTravel(relative, true)) {
 			ci.cancel();
 		}
 	}
 
-	@Inject(method = "travel(Lnet/minecraft/util/math/vector/Vec3d;)V", at = @At("RETURN"))
+	@Inject(method = "travel(Lnet/minecraft/util/math/Vec3d;)V", at = @At("RETURN"))
 	private void onTravelPost(Vec3d relative, CallbackInfo ci) {
 		this.onTravel(relative, false);
 	}

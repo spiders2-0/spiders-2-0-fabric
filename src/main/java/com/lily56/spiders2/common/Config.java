@@ -1,7 +1,7 @@
 package com.lily56.spiders2.common;
 
-import net.minecraftforge.common.ForgeConfigSpec;
-
+//import net.minecraftforge.common.ForgeConfigSpec;
+//TODO: Replace with ClothConfig
 public class Config {
 	public static final ForgeConfigSpec COMMON;
 

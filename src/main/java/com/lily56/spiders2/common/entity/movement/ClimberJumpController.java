@@ -19,11 +19,11 @@ public class ClimberJumpController<T extends MobEntity & IClimberEntity> extends
 	}
 
 	@Override
-	public void setJumping() {
-		this.setJumping(null);
+	public void setActive() {
+		this.setActive(null);
 	}
 
-	public void setJumping(Vec3d dir) {
+	public void setActive(Vec3d dir) {
 		super.setActive();
 		this.dir = dir;
 	}

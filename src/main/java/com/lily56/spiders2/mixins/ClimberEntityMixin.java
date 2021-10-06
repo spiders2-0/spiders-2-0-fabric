@@ -8,6 +8,7 @@ import java.util.UUID;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import net.minecraft.entity.ai.pathing.PathNode;
 import org.jetbrains.annotations.Nullable;
 
 import org.apache.commons.lang3.tuple.Pair;
@@ -26,6 +27,7 @@ import net.minecraft.entity.EntityType;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.MovementType;
 import net.minecraft.entity.attribute.EntityAttributeModifier;
+import net.minecraft.entity.attribute.EntityAttributeInstance;
 import net.minecraft.entity.mob.SpiderEntity;
 import net.minecraft.fluid.FluidState;
 import net.minecraft.nbt.NbtCompound;
@@ -44,7 +46,7 @@ import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.CollisionView;
 import net.minecraft.world.World;
 import net.minecraft.server.world.ServerWorld;
-import com.lily56.spiders2.common.CachedCollisionReader;
+import com.lily56.spiders2.common.CachedCollisionViewer;
 import com.lily56.spiders2.common.CollisionSmoothingUtil;
 import com.lily56.spiders2.common.Matrix4f;
 import com.lily56.spiders2.common.entity.mob.IClimberEntity;
@@ -142,6 +144,7 @@ public abstract class ClimberEntityMixin extends PathAwareEntity implements ICli
 	private double preMoveY;
 
 	private Vec3d jumpDir;
+	private float moveForward;
 
 	private ClimberEntityMixin(EntityType<? extends PathAwareEntity> type, World worldIn) {
 		super(type, worldIn);
@@ -160,9 +163,9 @@ public abstract class ClimberEntityMixin extends PathAwareEntity implements ICli
 
 	//createNavigator overrides usually don't call super.createNavigator so this ensures that onCreateNavigator
 	//still gets called in such cases
-	@Inject(method = "createNavigator(Lnet/minecraft/world/World;)Lnet/minecraft/pathfinding/PathNavigator;", at = @At("HEAD"), cancellable = true, require = 0, expect = 0)
+	@Inject(method = "createNavigation(Lnet/minecraft/world/World;)Lnet/minecraft/entity/ai/pathing/EntityNavigation;", at = @At("HEAD"), cancellable = true, require = 0, expect = 0)
 	private void onCreateNavigator(World world, CallbackInfoReturnable<EntityNavigation> ci) {
-		PathNavigator navigator = this.onCreateNavigator(world);
+		EntityNavigation navigator = this.onCreateNavigator(world);
 		if(navigator != null) {
 			ci.setReturnValue(navigator);
 		}
@@ -178,42 +181,42 @@ public abstract class ClimberEntityMixin extends PathAwareEntity implements ICli
 	@Override
 	public void onRegisterData() {
 		if(this.shouldTrackPathingTargets()) {
-			this.dataTracker.register(MOVEMENT_TARGET_X, 0.0f);
-			this.dataTracker.register(MOVEMENT_TARGET_Y, 0.0f);
-			this.dataTracker.register(MOVEMENT_TARGET_Z, 0.0f);
+			this.dataTracker.startTracking(MOVEMENT_TARGET_X, 0.0f);
+			this.dataTracker.startTracking(MOVEMENT_TARGET_Y, 0.0f);
+			this.dataTracker.startTracking(MOVEMENT_TARGET_Z, 0.0f);
 
 			for(TrackedData<Optional<BlockPos>> pathingTarget : PATHING_TARGETS) {
-				this.dataTracker.register(pathingTarget, Optional.empty());
+				this.dataTracker.startTracking(pathingTarget, Optional.empty());
 			}
 
 			for(TrackedData<Direction> pathingSide : PATHING_SIDES) {
-				this.dataTracker.register(pathingSide, Direction.DOWN);
+				this.dataTracker.startTracking(pathingSide, Direction.DOWN);
 			}
 		}
 
-		this.dataTracker.register(ROTATION_BODY, new EulerAngle(0, 0, 0));
+		this.dataTracker.startTracking(ROTATION_BODY, new EulerAngle(0, 0, 0));
 
-		this.dataTracker.register(ROTATION_HEAD, new EulerAngle(0, 0, 0));
+		this.dataTracker.startTracking(ROTATION_HEAD, new EulerAngle(0, 0, 0));
 	}
 
 	@Override
 	public void onWrite(NbtCompound nbt) {
-		nbt.putDouble("SpidersTPO.AttachmentNormalX", this.attachmentNormal.x);
-		nbt.putDouble("SpidersTPO.AttachmentNormalY", this.attachmentNormal.y);
-		nbt.putDouble("SpidersTPO.AttachmentNormalZ", this.attachmentNormal.z);
+		nbt.putDouble("spiders2.AttachmentNormalX", this.attachmentNormal.x);
+		nbt.putDouble("spiders2.AttachmentNormalY", this.attachmentNormal.y);
+		nbt.putDouble("spiders2.AttachmentNormalZ", this.attachmentNormal.z);
 
-		nbt.putInt("SpidersTPO.AttachedTicks", this.attachedTicks);
+		nbt.putInt("spiders2.AttachedTicks", this.attachedTicks);
 	}
 
 	@Override
 	public void onRead(NbtCompound nbt) {
 		this.prevAttachmentNormal = this.attachmentNormal = new Vec3d(
-				nbt.getDouble("SpidersTPO.AttachmentNormalX"),
-				nbt.getDouble("SpidersTPO.AttachmentNormalY"),
-				nbt.getDouble("SpidersTPO.AttachmentNormalZ")
+				nbt.getDouble("spiders2.AttachmentNormalX"),
+				nbt.getDouble("spiders2.AttachmentNormalY"),
+				nbt.getDouble("spiders2.AttachmentNormalZ")
 				);
 
-		this.attachedTicks = nbt.getInt("SpidersTPO.AttachedTicks");
+		this.attachedTicks = nbt.getInt("spiders2.AttachedTicks");
 
 		this.orientation = this.calculateOrientation(1);
 	}
@@ -259,7 +262,7 @@ public abstract class ClimberEntityMixin extends PathAwareEntity implements ICli
 	}
 
 	@Override
-	public float getBridgePathingMalus(MobEntity entity, BlockPos pos, PathPoint fallPathPoint) {
+	public float getBridgePathingMalus(MobEntity entity, BlockPos pos, PathNode fallPathPoint) {
 		return -1.0f;
 	}
 
@@ -275,20 +278,20 @@ public abstract class ClimberEntityMixin extends PathAwareEntity implements ICli
 
 	@Override
 	public float getMovementSpeed() {
-		ModifiableAttributeInstance attribute = this.getAttribute(Attributes.field_233821_d_); //MOVEMENT_SPEED
+		EntityAttributeInstance attribute = this.getAttribute(Attributes.field_233821_d_); //MOVEMENT_SPEED
 		return attribute != null ? (float) attribute.getValue() : 1.0f;
 	}
 
-	private static double calculateXOffset(Box aabb, Box other, double offsetX) {
-		if(other.maxY > aabb.minY && other.minY < aabb.maxY && other.maxZ > aabb.minZ && other.minZ < aabb.maxZ) {
-			if(offsetX > 0.0D && other.maxX <= aabb.minX) {
-				double dx = aabb.minX - other.maxX;
+	private static double calculateOffsetX(Box box, Box other, double offsetX) {
+		if(other.maxY > box.minY && other.minY < box.maxY && other.maxZ > box.minZ && other.minZ < box.maxZ) {
+			if(offsetX > 0.0D && other.maxX <= box.minX) {
+				double dx = box.minX - other.maxX;
 
 				if(dx < offsetX) {
 					offsetX = dx;
 				}
-			} else if(offsetX < 0.0D && other.minX >= aabb.maxX) {
-				double dx = aabb.maxX - other.minX;
+			} else if(offsetX < 0.0D && other.minX >= box.maxX) {
+				double dx = box.maxX - other.minX;
 
 				if(dx > offsetX) {
 					offsetX = dx;
@@ -301,16 +304,16 @@ public abstract class ClimberEntityMixin extends PathAwareEntity implements ICli
 		}
 	}
 
-	private static double calculateYOffset(Box aabb, Box other, double offsetY) {
-		if(other.maxX > aabb.minX && other.minX < aabb.maxX && other.maxZ > aabb.minZ && other.minZ < aabb.maxZ) {
-			if(offsetY > 0.0D && other.maxY <= aabb.minY) {
-				double dy = aabb.minY - other.maxY;
+	private static double calculateOffsetY(Box box, Box other, double offsetY) {
+		if(other.maxX > box.minX && other.minX < box.maxX && other.maxZ > box.minZ && other.minZ < box.maxZ) {
+			if(offsetY > 0.0D && other.maxY <= box.minY) {
+				double dy = box.minY - other.maxY;
 
 				if(dy < offsetY) {
 					offsetY = dy;
 				}
-			} else if(offsetY < 0.0D && other.minY >= aabb.maxY) {
-				double dy = aabb.maxY - other.minY;
+			} else if(offsetY < 0.0D && other.minY >= box.maxY) {
+				double dy = box.maxY - other.minY;
 
 				if(dy > offsetY) {
 					offsetY = dy;
@@ -323,16 +326,16 @@ public abstract class ClimberEntityMixin extends PathAwareEntity implements ICli
 		}
 	}
 
-	private static double calculateZOffset(Box aabb, Box other, double offsetZ) {
-		if(other.maxX > aabb.minX && other.minX < aabb.maxX && other.maxY > aabb.minY && other.minY < aabb.maxY) {
-			if(offsetZ > 0.0D && other.maxZ <= aabb.minZ) {
-				double dz = aabb.minZ - other.maxZ;
+	private static double calculateOffsetZ(Box box, Box other, double offsetZ) {
+		if(other.maxX > box.minX && other.minX < box.maxX && other.maxY > box.minY && other.minY < box.maxY) {
+			if(offsetZ > 0.0D && other.maxZ <= box.minZ) {
+				double dz = box.minZ - other.maxZ;
 
 				if(dz < offsetZ) {
 					offsetZ = dz;
 				}
-			} else if(offsetZ < 0.0D && other.minZ >= aabb.maxZ) {
-				double dz = aabb.maxZ - other.minZ;
+			} else if(offsetZ < 0.0D && other.minZ >= box.maxZ) {
+				double dz = box.maxZ - other.minZ;
 
 				if(dz > offsetZ) {
 					offsetZ = dz;
@@ -362,7 +365,7 @@ public abstract class ClimberEntityMixin extends PathAwareEntity implements ICli
 				continue;
 			}
 
-			List<Box> collisionBoxes = this.getClimbableCollisionBoxes(entityBox.grow(0.2f).expand(facing.getXOffset() * stickingDistance, facing.getYOffset() * stickingDistance, facing.getZOffset() * stickingDistance));
+			List<Box> collisionBoxes = this.getClimbableCollisionBoxes(entityBox.expand(0.2f).stretch(facing.getOffsetX() * stickingDistance, facing.getOffsetY() * stickingDistance, facing.getOffsetZ() * stickingDistance));
 
 			double closestDst = Double.MAX_VALUE;
 
@@ -370,15 +373,15 @@ public abstract class ClimberEntityMixin extends PathAwareEntity implements ICli
 				switch(facing) {
 				case EAST:
 				case WEST:
-					closestDst = Math.min(closestDst, Math.abs(calculateXOffset(entityBox, collisionBox, -facing.getXOffset() * stickingDistance)));
+					closestDst = Math.min(closestDst, Math.abs(calculateOffsetX(entityBox, collisionBox, -facing.getOffsetX() * stickingDistance)));
 					break;
 				case UP:
 				case DOWN:
-					closestDst = Math.min(closestDst, Math.abs(calculateYOffset(entityBox, collisionBox, -facing.getYOffset() * stickingDistance)));
+					closestDst = Math.min(closestDst, Math.abs(calculateOffsetY(entityBox, collisionBox, -facing.getOffsetY() * stickingDistance)));
 					break;
 				case NORTH:
 				case SOUTH:
-					closestDst = Math.min(closestDst, Math.abs(calculateZOffset(entityBox, collisionBox, -facing.getZOffset() * stickingDistance)));
+					closestDst = Math.min(closestDst, Math.abs(calculateOffsetZ(entityBox, collisionBox, -facing.getOffsetZ() * stickingDistance)));
 					break;
 				}
 			}
@@ -389,7 +392,7 @@ public abstract class ClimberEntityMixin extends PathAwareEntity implements ICli
 			}
 
 			if(closestDst < Double.MAX_VALUE) {
-				weighting = weighting.add(new Vec3d(facing.getXOffset(), facing.getYOffset(), facing.getZOffset()).scale(1 - Math.min(closestDst, stickingDistance) / stickingDistance));
+				weighting = weighting.add(new Vec3d(facing.getOffsetX(), facing.getOffsetY(), facing.getOffsetZ()).scale(1 - Math.min(closestDst, stickingDistance) / stickingDistance));
 			}
 		}
 
@@ -460,10 +463,10 @@ public abstract class ClimberEntityMixin extends PathAwareEntity implements ICli
 				Orientation orientation = this.getOrientation();
 
 				Vec3d look = orientation.getGlobal(this.rotationYaw, this.rotationPitch);
-				this.dataManager.set(ROTATION_BODY, new EulerAngle((float) look.x, (float) look.y, (float) look.z));
+				this.dataTracker.set(ROTATION_BODY, new EulerAngle((float) look.x, (float) look.y, (float) look.z));
 
 				look = orientation.getGlobal(this.rotationYawHead, 0.0f);
-				this.dataManager.set(ROTATION_HEAD, new EulerAngle((float) look.x, (float) look.y, (float) look.z));
+				this.dataTracker.set(ROTATION_HEAD, new EulerAngle((float) look.x, (float) look.y, (float) look.z));
 
 				if(this.shouldTrackPathingTargets()) {
 					if(this.moveStrafing != 0) {
@@ -472,13 +475,13 @@ public abstract class ClimberEntityMixin extends PathAwareEntity implements ICli
 
 						Vec3d offset = forwardVector.scale(this.moveForward).add(strafeVector.scale(this.moveStrafing)).normalize();
 
-						this.dataManager.set(MOVEMENT_TARGET_X, (float) (this.getPosX() + offset.x));
-						this.dataManager.set(MOVEMENT_TARGET_Y, (float) (this.getPosY() + this.getHeight() * 0.5f + offset.y));
-						this.dataManager.set(MOVEMENT_TARGET_Z, (float) (this.getPosZ() + offset.z));
+						this.dataTracker.set(MOVEMENT_TARGET_X, (float) (this.getPosX() + offset.x));
+						this.dataTracker.set(MOVEMENT_TARGET_Y, (float) (this.getPosY() + this.getHeight() * 0.5f + offset.y));
+						this.dataTracker.set(MOVEMENT_TARGET_Z, (float) (this.getPosZ() + offset.z));
 					} else {
-						this.dataManager.set(MOVEMENT_TARGET_X, (float) this.getMoveHelper().getX());
-						this.dataManager.set(MOVEMENT_TARGET_Y, (float) this.getMoveHelper().getY());
-						this.dataManager.set(MOVEMENT_TARGET_Z, (float) this.getMoveHelper().getZ());
+						this.dataTracker.set(MOVEMENT_TARGET_X, (float) this.getMoveHelper().getX());
+						this.dataTracker.set(MOVEMENT_TARGET_Y, (float) this.getMoveHelper().getY());
+						this.dataTracker.set(MOVEMENT_TARGET_Z, (float) this.getMoveHelper().getZ());
 					}
 
 					Path path = this.getNavigator().getPath();
@@ -491,32 +494,32 @@ public abstract class ClimberEntityMixin extends PathAwareEntity implements ICli
 							if(path.getCurrentPathIndex() + i < path.getCurrentPathLength()) {
 								PathPoint point = path.getPathPointFromIndex(path.getCurrentPathIndex() + i);
 
-								this.dataManager.set(pathingTarget, Optional.of(new BlockPos(point.x, point.y, point.z)));
+								this.dataTracker.set(pathingTarget, Optional.of(new BlockPos(point.x, point.y, point.z)));
 
 								if(point instanceof DirectionalPathNode) {
 									Direction dir = ((DirectionalPathNode) point).getPathSide();
 
 									if(dir != null) {
-										this.dataManager.set(pathingSide, dir);
+										this.dataTracker.set(pathingSide, dir);
 									} else {
-										this.dataManager.set(pathingSide, Direction.DOWN);
+										this.dataTracker.set(pathingSide, Direction.DOWN);
 									}
 								}
 
 							} else {
-								this.dataManager.set(pathingTarget, Optional.empty());
-								this.dataManager.set(pathingSide, Direction.DOWN);
+								this.dataTracker.set(pathingTarget, Optional.empty());
+								this.dataTracker.set(pathingSide, Direction.DOWN);
 							}
 
 							i++;
 						}
 					} else {
 						for(TrackedData<Optional<BlockPos>> pathingTarget : PATHING_TARGETS) {
-							this.dataManager.set(pathingTarget, Optional.empty());
+							this.dataTracker.set(pathingTarget, Optional.empty());
 						}
 
 						for(TrackedData<Direction> pathingSide : PATHING_SIDES) {
-							this.dataManager.set(pathingSide, Direction.DOWN);
+							this.dataTracker.set(pathingSide, Direction.DOWN);
 						}
 					}
 				}
@@ -538,7 +541,7 @@ public abstract class ClimberEntityMixin extends PathAwareEntity implements ICli
 	@Nullable
 	public Vec3d getTrackedMovementTarget() {
 		if(this.shouldTrackPathingTargets()) {
-			return new Vec3d(this.dataManager.get(MOVEMENT_TARGET_X), this.dataManager.get(MOVEMENT_TARGET_Y), this.dataManager.get(MOVEMENT_TARGET_Z));
+			return new Vec3d(this.dataTracker.get(MOVEMENT_TARGET_X), this.dataTracker.get(MOVEMENT_TARGET_Y), this.dataTracker.get(MOVEMENT_TARGET_Z));
 		}
 
 		return null;
@@ -552,10 +555,10 @@ public abstract class ClimberEntityMixin extends PathAwareEntity implements ICli
 
 			int i = 0;
 			for(TrackedData<Optional<BlockPos>> key : PATHING_TARGETS) {
-				BlockPos pos = this.dataManager.get(key).orElse(null);
+				BlockPos pos = this.dataTracker.get(key).orElse(null);
 
 				if(pos != null) {
-					pathingTargets.add(new PathingTarget(pos, this.dataManager.get(PATHING_SIDES.get(i))));
+					pathingTargets.add(new PathingTarget(pos, this.dataTracker.get(PATHING_SIDES.get(i))));
 				}
 
 				i++;
@@ -577,17 +580,17 @@ public abstract class ClimberEntityMixin extends PathAwareEntity implements ICli
 		return 0.4f;
 	}
 
-	private void forEachClimbableCollisonBox(Box aabb, VoxelShapes.ILineConsumer action) {
-		CollisionView cachedCollisionReader = new CachedCollisionReader(this.world, aabb);
+	private void forEachClimbableCollisonBox(Box box, VoxelShapes.ILineConsumer action) {
+		CollisionView cachedCollisionReader = new CachedCollisionViewer(this.world, box);
 
-		Stream<VoxelShape> shapes = StreamSupport.stream(new VoxelShapeSpliterator(cachedCollisionReader, this, aabb, this::canClimbOnBlock), false);
+		Stream<VoxelShape> shapes = StreamSupport.stream(new VoxelShapeSpliterator(cachedCollisionReader, this, box, this::canClimbOnBlock), false);
 
 		shapes.forEach(shape -> shape.forEachBox(action));
 	}
 
-	private List<Box> getClimbableCollisionBoxes(Box aabb) {
+	private List<Box> getClimbableCollisionBoxes(Box box) {
 		List<Box> boxes = new ArrayList<>();
-		this.forEachClimbableCollisonBox(aabb, (minX, minY, minZ, maxX, maxY, maxZ) -> boxes.add(new Box(minX, minY, minZ, maxX, maxY, maxZ)));
+		this.forEachClimbableCollisonBox(box, (minX, minY, minZ, maxX, maxY, maxZ) -> boxes.add(new Box(minX, minY, minZ, maxX, maxY, maxZ)));
 		return boxes;
 	}
 
@@ -763,21 +766,21 @@ public abstract class ClimberEntityMixin extends PathAwareEntity implements ICli
 	@Override
 	public void onNotifyDataManagerChange(TrackedData<?> key) {
 		if(ROTATION_BODY.equals(key)) {
-			EulerAngle rotation = this.dataManager.get(ROTATION_BODY);
-			Vec3d look = new Vec3d(rotation.getX(), rotation.getY(), rotation.getZ());
+			EulerAngle rotation = this.dataTracker.get(ROTATION_BODY);
+			Vec3d look = new Vec3d(rotation.getPitch(), rotation.getYaw(), rotation.getRoll());
 
 			Pair<Float, Float> EulerAngle = this.getOrientation().getLocalRotation(look);
 
-			this.interpTargetYaw = EulerAngle.getLeft();
-			this.interpTargetPitch = EulerAngle.getRight();
+			this.serverYaw = EulerAngle.getLeft();
+			this.serverPitch = EulerAngle.getRight();
 		} else if(ROTATION_HEAD.equals(key)) {
-			EulerAngle rotation = this.dataManager.get(ROTATION_HEAD);
-			Vec3d look = new Vec3d(rotation.getX(), rotation.getY(), rotation.getZ());
+			EulerAngle rotation = this.dataTracker.get(ROTATION_HEAD);
+			Vec3d look = new Vec3d(rotation.getPitch(), rotation.getYaw(), rotation.getRoll());
 
 			Pair<Float, Float> EulerAngle = this.getOrientation().getLocalRotation(look);
 
-			this.interpTargetHeadYaw = EulerAngle.getLeft();
-			this.interpTicksHead = 3;
+			this.serverHeadYaw = EulerAngle.getLeft();
+			this.headTrackingIncrements = 3;
 		}
 	}
 
@@ -786,9 +789,9 @@ public abstract class ClimberEntityMixin extends PathAwareEntity implements ICli
 			return 0;
 		}
 
-		ModifiableAttributeInstance gravity = this.getAttribute(net.minecraftforge.common.ForgeMod.ENTITY_GRAVITY.get());
+		EntityAttributeInstance gravity = this.getAttributeValue(net.minecraftforge.common.ForgeMod.ENTITY_GRAVITY.get());
 
-		boolean isFalling = this.getMotion().y <= 0.0D;
+		boolean isFalling = this.getVelocity().y <= 0.0D;
 
 		if(isFalling && this.isPotionActive(Effects.SLOW_FALLING)) {
 			if(!gravity.hasModifier(SLOW_FALLING)) {
@@ -821,7 +824,7 @@ public abstract class ClimberEntityMixin extends PathAwareEntity implements ICli
 				jumpStrength += 0.1F * (float)(this.getActivePotionEffect(Effects.JUMP_BOOST).getAmplifier() + 1);
 			}
 
-			Vec3d motion = this.getMotion();
+			Vec3d motion = this.getVelocity();
 
 			Vec3d orthogonalMotion = this.jumpDir.scale(this.jumpDir.dotProduct(motion));
 			Vec3d tangentialMotion = motion.subtract(orthogonalMotion);
@@ -830,7 +833,7 @@ public abstract class ClimberEntityMixin extends PathAwareEntity implements ICli
 
 			if(this.isSprinting()) {
 				Vec3d boost = this.getOrientation().getGlobal(this.rotationYaw, 0).scale(0.2f);
-				this.setMotion(this.getMotion().add(boost));
+				this.setMotion(this.getVelocity().add(boost));
 			}
 
 			this.isAirBorne = true;
@@ -894,7 +897,7 @@ public abstract class ClimberEntityMixin extends PathAwareEntity implements ICli
 
 		Vec3d stickingForce = this.getStickingForce(groundDirection);
 
-		boolean isFalling = this.getMotion().y <= 0.0D;
+		boolean isFalling = this.getVelocity().y <= 0.0D;
 
 		if(isFalling && this.isPotionActive(Effects.SLOW_FALLING)) {
 			this.fallDistance = 0;
@@ -923,15 +926,15 @@ public abstract class ClimberEntityMixin extends PathAwareEntity implements ICli
 				double px = this.getPosX();
 				double py = this.getPosY();
 				double pz = this.getPosZ();
-				Vec3d motion = this.getMotion();
-				Box aabb = this.getBoundingBox();
+				Vec3d motion = this.getVelocity();
+				Box box = this.getBoundingBox();
 
 				//Probe actual movement vector
 				this.move(MovementType.SELF, movementOffset);
 
 				Vec3d movementDir = new Vec3d(this.getPosX() - px, this.getPosY() - py, this.getPosZ() - pz).normalize();
 
-				this.setBoundingBox(aabb);
+				this.setBoundingBox(box);
 				this.resetPositionToBB();
 				this.setMotion(motion);
 
@@ -941,7 +944,7 @@ public abstract class ClimberEntityMixin extends PathAwareEntity implements ICli
 
 				Vec3d collisionNormal = new Vec3d(Math.abs(this.getPosX() - px - probeVector.x) > 0.000001D ? Math.signum(-probeVector.x) : 0, Math.abs(this.getPosY() - py - probeVector.y) > 0.000001D ? Math.signum(-probeVector.y) : 0, Math.abs(this.getPosZ() - pz - probeVector.z) > 0.000001D ? Math.signum(-probeVector.z) : 0).normalize();
 
-				this.setBoundingBox(aabb);
+				this.setBoundingBox(box);
 				this.resetPositionToBB();
 				this.setMotion(motion);
 
@@ -959,16 +962,16 @@ public abstract class ClimberEntityMixin extends PathAwareEntity implements ICli
 				stickingForce = stickingForce.subtract(surfaceMovementDir.scale(surfaceMovementDir.normalize().dotProduct(stickingForce)));
 
 				float moveSpeed = MathHelper.sqrt(forward * forward + strafe * strafe);
-				this.setMotion(this.getMotion().add(movementDir.scale(moveSpeed)));
+				this.setMotion(this.getVelocity().add(movementDir.scale(moveSpeed)));
 			}
 		}
 
-		this.setMotion(this.getMotion().add(stickingForce));
+		this.setMotion(this.getVelocity().add(stickingForce));
 
 		double px = this.getPosX();
 		double py = this.getPosY();
 		double pz = this.getPosZ();
-		Vec3d motion = this.getMotion();
+		Vec3d motion = this.getVelocity();
 
 		this.move(MovementType.SELF, motion);
 
@@ -984,7 +987,7 @@ public abstract class ClimberEntityMixin extends PathAwareEntity implements ICli
 			slipperiness = this.getBlockSlipperiness(offsetPos);
 		}
 
-		motion = this.getMotion();
+		motion = this.getVelocity();
 		Vec3d orthogonalMotion = upVector.scale(upVector.dotProduct(motion));
 		Vec3d tangentialMotion = motion.subtract(orthogonalMotion);
 
@@ -1002,7 +1005,7 @@ public abstract class ClimberEntityMixin extends PathAwareEntity implements ICli
 			boolean prevCollidedHorizontally = this.collidedHorizontally;
 			boolean prevCollidedVertically = this.collidedVertically;
 
-			//Offset so that AABB is moved above the new surface
+			//Offset so that box is moved above the new surface
 			this.move(MovementType.SELF, new Vec3d(detachedX ? -this.prevAttachedSides.x * 0.25f : 0, detachedY ? -this.prevAttachedSides.y * 0.25f : 0, detachedZ ? -this.prevAttachedSides.z * 0.25f : 0));
 
 			Vec3d axis = this.prevAttachedSides.normalize();
@@ -1019,10 +1022,10 @@ public abstract class ClimberEntityMixin extends PathAwareEntity implements ICli
 
 			double attachDst = motion.length() + 0.1f;
 
-			Box aabb = this.getBoundingBox();
-			motion = this.getMotion();
+			Box box = this.getBoundingBox();
+			motion = this.getVelocity();
 
-			//Offset AABB towards new surface until it touches
+			//Offset box towards new surface until it touches
 			for(int i = 0; i < 2 && !this.onGround; i++) {
 				this.move(MovementType.SELF, attachVector.scale(attachDst));
 			}
@@ -1031,7 +1034,7 @@ public abstract class ClimberEntityMixin extends PathAwareEntity implements ICli
 
 			//Attaching failed, fall back to previous position
 			if(!this.onGround) {
-				this.setBoundingBox(aabb);
+				this.setBoundingBox(box);
 				this.resetPositionToBB();
 				this.setMotion(motion);
 				this.onGround = prevOnGround;
@@ -1052,7 +1055,7 @@ public abstract class ClimberEntityMixin extends PathAwareEntity implements ICli
 			this.preMoveY = this.getPosY();
 		} else {
 			if(Math.abs(this.getPosY() - this.preMoveY - pos.y) > 0.000001D) {
-				this.setMotion(this.getMotion().mul(1, 0, 1));
+				this.setMotion(this.getVelocity().mul(1, 0, 1));
 			}
 
 			this.onGround |= this.collidedHorizontally || this.collidedVertically;
@@ -1065,9 +1068,9 @@ public abstract class ClimberEntityMixin extends PathAwareEntity implements ICli
 	public BlockPos getAdjustedOnPosition(BlockPos onPosition) {
 		float verticalOffset = this.getVerticalOffset(1);
 
-		int x = MathHelper.floor(this.getPosX() + this.attachmentOffsetX - (float) this.attachmentNormal.x * (verticalOffset + 0.2f));
-		int y = MathHelper.floor(this.getPosY() + this.attachmentOffsetY - (float) this.attachmentNormal.y * (verticalOffset + 0.2f));
-		int z = MathHelper.floor(this.getPosZ() + this.attachmentOffsetZ - (float) this.attachmentNormal.z * (verticalOffset + 0.2f));
+		int x = MathHelper.floor(this.getX() + this.attachmentOffsetX - (float) this.attachmentNormal.x * (verticalOffset + 0.2f));
+		int y = MathHelper.floor(this.getY() + this.attachmentOffsetY - (float) this.attachmentNormal.y * (verticalOffset + 0.2f));
+		int z = MathHelper.floor(this.getZ() + this.attachmentOffsetZ - (float) this.attachmentNormal.z * (verticalOffset + 0.2f));
 		BlockPos pos = new BlockPos(x, y, z);
 
 		if(this.world.isAirBlock(pos) && this.attachmentNormal.y < 0.0f) {
@@ -1109,7 +1112,7 @@ public abstract class ClimberEntityMixin extends PathAwareEntity implements ICli
 
 					float multiplier = controller == this ? 0.35F : 0.4F;
 
-					Vec3d motion = controller.getMotion();
+					Vec3d motion = controller.getVelocity();
 
 					float swimStrength = MathHelper.sqrt(motion.x * motion.x * (double) 0.2F + motion.y * motion.y + motion.z * motion.z * 0.2F) * multiplier;
 					if(swimStrength > 1.0F) {

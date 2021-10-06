@@ -3,28 +3,39 @@ package com.lily56.spiders2.common.entity.movement;
 import java.util.HashSet;
 import java.util.Set;
 
-import javax.annotation.Nullable;
+import org.jetbrains.annotations.Nullable;
 
 import net.minecraft.block.BlockState;
-import net.minecraft.entity.MobEntity;
+import net.minecraft.entity.mob.MobEntity;
+
+/*
 import net.minecraft.pathfinding.GroundPathNavigator;
 import net.minecraft.pathfinding.Path;
 import net.minecraft.pathfinding.PathFinder;
 import net.minecraft.pathfinding.PathNodeType;
 import net.minecraft.pathfinding.PathType;
-import net.minecraft.util.Direction;
+*/
+
+import net.minecraft.entity.ai.pathing.MobNavigation;
+import net.minecraft.entity.ai.pathing.Path;
+import net.minecraft.entity.ai.pathing.PathNodeNavigator;
+import net.minecraft.entity.ai.pathing.PathNodeType;
+import net.minecraft.entity.ai.pathing.NavigationType;
+
+import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.shapes.ISelectionContext;
-import net.minecraft.util.math.shapes.VoxelShape;
-import net.minecraft.util.math.vector.Vector3d;
+//import net.minecraft.util.math.shapes.ISelectionContext;
+import net.minecraft.block.ShapeContext;
+//import net.minecraft.util.math.shapes.VoxelShape;
+import net.minecraft.util.shape.VoxelShape;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 import com.lily56.spiders2.common.entity.mob.IClimberEntity;
-import net.minecraft.util.math.Box;
 
 
-public class AdvancedGroundPathNavigator<T extends MobEntity & IClimberEntity> extends GroundPathNavigator {
-	protected AdvancedPathFinder pathFinder;
+public class AdvancedGroundPathNavigator<T extends MobEntity & IClimberEntity> extends MobNavigation {
+	protected AdvancedPathNodeNavigator pathFinder;
 	protected long lastTimeUpdated;
 	protected BlockPos targetPos;
 
@@ -44,27 +55,27 @@ public class AdvancedGroundPathNavigator<T extends MobEntity & IClimberEntity> e
 		this.advancedPathFindingEntity = entity;
 		this.checkObstructions = checkObstructions;
 
-		if(this.nodeProcessor instanceof AdvancedWalkNodeProcessor) {
-			AdvancedWalkNodeProcessor processor = (AdvancedWalkNodeProcessor) this.nodeProcessor;
+		if(this.nodeMaker instanceof AdvancedLandPathNodeMaker) {
+			AdvancedLandPathNodeMaker processor = (AdvancedLandPathNodeMaker) this.nodeMaker;
 			processor.setCheckObstructions(checkObstructions);
 		}
 	}
 
-	public AdvancedPathFinder getAssignedPathFinder() {
+	public AdvancedPathNodeNavigator getAssignedPathFinder() {
 		return this.pathFinder;
 	}
 
 	@Override
-	protected final PathFinder getPathFinder(int maxExpansions) {
-		this.pathFinder = this.createPathFinder(maxExpansions);
-		this.nodeProcessor = this.pathFinder.getNodeProcessor();
+	protected final PathNodeNavigator getPathNodeNavigator(int maxExpansions) {
+		this.getPathNodeNavigator() = this.createPathFinder(maxExpansions);
+		this.nodeMaker = this.pathFinder.getNodeProcessor();
 		return this.pathFinder;
 	}
 
-	protected AdvancedPathFinder createPathFinder(int maxExpansions) {
-		AdvancedWalkNodeProcessor nodeProcessor = new AdvancedWalkNodeProcessor();
-		nodeProcessor.setCanEnterDoors(true);
-		return new AdvancedPathFinder(nodeProcessor, maxExpansions);
+	protected AdvancedPathNodeNavigator createPathFinder(int maxExpansions) {
+		AdvancedLandPathNodeMaker nodeMaker = new AdvancedLandPathNodeMaker();
+		nodeMaker.setCanEnterDoors(true);
+		return new AdvancedPathNodeNavigator(nodeMaker, maxExpansions);
 	}
 
 	@Nullable
@@ -100,12 +111,12 @@ public class AdvancedGroundPathNavigator<T extends MobEntity & IClimberEntity> e
 	}
 
 	@Override
-	protected void checkForStuck(Vector3d entityPos) {
+	protected void checkForStuck(Vec3d entityPos) {
 		super.checkForStuck(entityPos);
 
 		if(this.checkObstructions && this.currentPath != null && !this.currentPath.isFinished()) {
-			Vector3d target = this.currentPath.getVectorFromIndex(this.advancedPathFindingEntity, Math.min(this.currentPath.getCurrentPathLength() - 1, this.currentPath.getCurrentPathIndex() + 0));
-			Vector3d diff = target.subtract(entityPos);
+			Vec3d target = this.currentPath.getVectorFromIndex(this.advancedPathFindingEntity, Math.min(this.currentPath.getCurrentPathLength() - 1, this.currentPath.getCurrentPathIndex() + 0));
+			Vec3d diff = target.subtract(entityPos);
 
 			int axis = 0;
 			double maxDiff = 0;
@@ -135,21 +146,21 @@ public class AdvancedGroundPathNavigator<T extends MobEntity & IClimberEntity> e
 
 			int ceilHalfWidth = MathHelper.ceil(this.advancedPathFindingEntity.getWidth() / 2.0f + 0.05F);
 
-			Vector3d checkPos;
+			Vec3d checkPos;
 			switch(axis) {
 			default:
 			case 0:
-				checkPos = new Vector3d(entityPos.x + Math.signum(diff.x) * ceilHalfWidth, entityPos.y, target.z);
+				checkPos = new Vec3d(entityPos.x + Math.signum(diff.x) * ceilHalfWidth, entityPos.y, target.z);
 				break;
 			case 1:
-				checkPos = new Vector3d(entityPos.x, entityPos.y + (diff.y > 0 ? (height + 1) : -1), target.z);
+				checkPos = new Vec3d(entityPos.x, entityPos.y + (diff.y > 0 ? (height + 1) : -1), target.z);
 				break;
 			case 2:
-				checkPos = new Vector3d(target.x, entityPos.y, entityPos.z + Math.signum(diff.z) * ceilHalfWidth);
+				checkPos = new Vec3d(target.x, entityPos.y, entityPos.z + Math.signum(diff.z) * ceilHalfWidth);
 				break;
 			}
 
-			Vector3d facingDiff = checkPos.subtract(entityPos.add(0, axis == 1 ? this.entity.getHeight() / 2 : 0, 0));
+			Vec3d facingDiff = checkPos.subtract(entityPos.add(0, axis == 1 ? this.entity.getHeight() / 2 : 0, 0));
 			Direction facing = Direction.getFacingFromVector((float)facingDiff.x, (float)facingDiff.y, (float)facingDiff.z);
 
 			boolean blocked = false;
@@ -162,10 +173,10 @@ public class AdvancedGroundPathNavigator<T extends MobEntity & IClimberEntity> e
 
 					BlockState state = this.advancedPathFindingEntity.world.getBlockState(pos);
 
-					PathNodeType nodeType = state.allowsMovement(this.advancedPathFindingEntity.world, pos, PathType.LAND) ? PathNodeType.OPEN : PathNodeType.BLOCKED;
+					PathNodeType nodeType = state.allowsMovement(this.advancedPathFindingEntity.world, pos, NavigationType.LAND) ? PathNodeType.OPEN : PathNodeType.BLOCKED;
 
 					if(nodeType == PathNodeType.BLOCKED) {
-						VoxelShape collisionShape = state.getShape(this.advancedPathFindingEntity.world, pos, ISelectionContext.forEntity(this.advancedPathFindingEntity)).withOffset(pos.getX(), pos.getY(), pos.getZ());
+						VoxelShape collisionShape = state.getShape(this.advancedPathFindingEntity.world, pos, ShapeContext.forEntity(this.advancedPathFindingEntity)).withOffset(pos.getX(), pos.getY(), pos.getZ());
 
 						//TODO Use ILineConsumer
 						if(collisionShape != null && collisionShape.toBoundingBoxList().stream().anyMatch(aabb -> aabb.intersects(checkBox))) {

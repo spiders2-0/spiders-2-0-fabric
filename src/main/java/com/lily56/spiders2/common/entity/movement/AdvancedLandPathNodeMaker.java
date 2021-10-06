@@ -3,7 +3,6 @@ package com.lily56.spiders2.common.entity.movement;
 import java.util.EnumSet;
 
 import org.jetbrains.annotations.Nullable;
-import PathPoint;
 import it.unimi.dsi.fastutil.longs.Long2LongMap;
 import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
@@ -16,16 +15,17 @@ import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.fluid.Fluids;
 
 import net.minecraft.entity.ai.pathing.PathNodeType;
+import net.minecraft.entity.ai.pathing.LandPathNodeMaker;
 
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Direction.Axis;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3i;
-import net.minecraft.world.Region;
+import net.minecraft.world.chunk.ChunkCache;
 
 
-public class AdvancedWalkNodeProcessor extends WalkNodeProcessor {
+public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 	protected static final PathNodeType[] PATH_NODE_TYPES = PathNodeType.values();
 	protected static final Direction[] DIRECTIONS = Direction.values();
 
@@ -95,8 +95,8 @@ public class AdvancedWalkNodeProcessor extends WalkNodeProcessor {
 	}
 
 	@Override
-	public void func_225578_a_(Region sourceIn, MobEntity mob) {
-		super.func_225578_a_(sourceIn, mob);
+	public void initialize(ChunkCache sourceIn, MobEntity mob) {
+		super.init(sourceIn, mob);
 
 		if(mob instanceof IAdvancedPathFindingEntity) {
 			this.advancedPathFindingEntity = (IAdvancedPathFindingEntity) mob;

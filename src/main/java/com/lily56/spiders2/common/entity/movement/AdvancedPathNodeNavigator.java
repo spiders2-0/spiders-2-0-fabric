@@ -17,32 +17,32 @@ import net.minecraft.entity.ai.pathing.PathNode;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.BlockPos;
 
-public class AdvancedPathFinder extends CustomPathNodeNavigator {
+public class AdvancedPathNodeNavigator extends CustomPathNodeNavigator {
 	private static class Node {
 		private final Node previous;
-		private final DirectionalPathNode pathPoint;
+		private final DirectionalPathNode PathNode;
 		private final Direction side;
 		private final int depth;
 
-		private Node(@Nullable Node previous, DirectionalPathNode pathPoint) {
+		private Node(@Nullable Node previous, DirectionalPathNode PathNode) {
 			this.previous = previous;
 			this.depth = previous != null ? previous.depth + 1 : 0;
-			this.pathPoint = pathPoint;
-			this.side = pathPoint.getPathSide();
+			this.PathNode = PathNode;
+			this.side = PathNode.getPathSide();
 		}
 
-		private Node(Node previous, int depth, DirectionalPathNode pathPoint) {
+		private Node(Node previous, int depth, DirectionalPathNode PathNode) {
 			this.previous = previous;
 			this.depth = depth;
-			this.pathPoint = pathPoint;
-			this.side = pathPoint.getPathSide();
+			this.PathNode = PathNode;
+			this.side = PathNode.getPathSide();
 		}
 
 		@Override
 		public int hashCode() {
 			final int prime = 31;
 			int result = 1;
-			result = prime * result + ((this.pathPoint == null) ? 0 : this.pathPoint.hashCode());
+			result = prime * result + ((this.PathNode == null) ? 0 : this.PathNode.hashCode());
 			result = prime * result + ((this.side == null) ? 0 : this.side.hashCode());
 			return result;
 		}
@@ -59,11 +59,11 @@ public class AdvancedPathFinder extends CustomPathNodeNavigator {
 				return false;
 			}
 			Node other = (Node) obj;
-			if(this.pathPoint == null) {
-				if(other.pathPoint != null) {
+			if(this.PathNode == null) {
+				if(other.PathNode != null) {
 					return false;
 				}
-			} else if(!this.pathPoint.equals(other.pathPoint)) {
+			} else if(!this.PathNode.equals(other.PathNode)) {
 				return false;
 			}
 			if(this.side != other.side) {
@@ -75,7 +75,7 @@ public class AdvancedPathFinder extends CustomPathNodeNavigator {
 
 	private static final Direction[] DOWN = new Direction[] { Direction.DOWN };
 
-	public AdvancedPathFinder(PathNodeMaker processor, int maxExpansions) {
+	public AdvancedPathNodeNavigator(PathNodeMaker processor, int maxExpansions) {
 		super(processor, maxExpansions);
 	}
 
@@ -113,11 +113,11 @@ public class AdvancedPathFinder extends CustomPathNodeNavigator {
 
 	private void backtrackPath(List<PathNode> points, Node start) {
 		Node currentNode = start;
-		points.add(start.pathPoint);
+		points.add(start.PathNode);
 
 		while(currentNode.previous != null) {
 			currentNode = currentNode.previous;
-			points.add(currentNode.pathPoint);
+			points.add(currentNode.PathNode);
 		}
 	}
 
@@ -130,7 +130,7 @@ public class AdvancedPathFinder extends CustomPathNodeNavigator {
 	}
 
 	private static boolean isOmnidirectionalPoint(DirectionalPathNode point) {
-		return point.nodeType == PathNodeType.WATER || point.nodeType == PathNodeType.LAVA;
+		return point.type == PathNodeType.WATER || point.type == PathNodeType.LAVA;
 	}
 
 	private Node retraceSidedPath(List<PathNode> points, boolean isReversed) {
@@ -171,15 +171,15 @@ public class AdvancedPathFinder extends CustomPathNodeNavigator {
 			for(Direction nextSide : getPathableSidesWithFallback(next)) {
 				Node nextNode = null;
 
-				if((isReversed && current.pathPoint.isDrop()) || (!isReversed && next.isDrop())) {
+				if((isReversed && current.PathNode.isDrop()) || (!isReversed && next.isDrop())) {
 
 					//Side doesn't matter if node represents a drop
 					nextNode = new Node(current, next.assignPathSide(nextSide));
 
 				} else {
-					int dx = (int)Math.signum(next.x - current.pathPoint.x);
-					int dy = (int)Math.signum(next.y - current.pathPoint.y);
-					int dz = (int)Math.signum(next.z - current.pathPoint.z);
+					int dx = (int)Math.signum(next.x - current.PathNode.x);
+					int dy = (int)Math.signum(next.y - current.PathNode.y);
+					int dz = (int)Math.signum(next.z - current.PathNode.z);
 
 					int adx = Math.abs(dx);
 					int ady = Math.abs(dy);
@@ -200,8 +200,8 @@ public class AdvancedPathFinder extends CustomPathNodeNavigator {
 							//Allow movement around corners, but insert new point with transitional side inbetween
 
 							Node intermediary;
-							if(Math.abs(currentSide.getXOffset()) == adx && Math.abs(currentSide.getYOffset()) == ady && Math.abs(currentSide.getZOffset()) == adz) {
-								intermediary = new Node(current, current.pathPoint.assignPathSide(nextSide));
+							if(Math.abs(currentSide.getOffsetX()) == adx && Math.abs(currentSide.getOffsetY()) == ady && Math.abs(currentSide.getZOffset()) == adz) {
+								intermediary = new Node(current, current.PathNode.assignPathSide(nextSide));
 							} else {
 								intermediary = new Node(current, next.assignPathSide(currentSide));
 							}
@@ -212,7 +212,7 @@ public class AdvancedPathFinder extends CustomPathNodeNavigator {
 					} else if(d == 2) {
 						//Diagonal
 
-						int currentSidePlaneMatch = (currentSide.getXOffset() == -dx ? 1 : 0) + (currentSide.getYOffset() == -dy ? 1 : 0) + (currentSide.getZOffset() == -dz ? 1 : 0);
+						int currentSidePlaneMatch = (currentSide.getOffsetX() == -dx ? 1 : 0) + (currentSide.getOffsetY() == -dy ? 1 : 0) + (currentSide.getZOffset() == -dz ? 1 : 0);
 
 						if(currentSide == nextSide && currentSidePlaneMatch == 0) {
 
@@ -224,15 +224,15 @@ public class AdvancedPathFinder extends CustomPathNodeNavigator {
 
 							Node intermediary = null;
 							if(currentSidePlaneMatch == 2) {
-								for(Direction intermediarySide : getPathableSidesWithFallback(current.pathPoint)) {
-									if(intermediarySide != currentSide && (intermediarySide.getXOffset() == dx ? 1 : 0) + (intermediarySide.getYOffset() == dy ? 1 : 0) + (intermediarySide.getZOffset() == dz ? 1 : 0) == 2) {
-										intermediary = new Node(current, current.pathPoint.assignPathSide(intermediarySide));
+								for(Direction intermediarySide : getPathableSidesWithFallback(current.PathNode)) {
+									if(intermediarySide != currentSide && (intermediarySide.getOffsetX() == dx ? 1 : 0) + (intermediarySide.getOffsetY() == dy ? 1 : 0) + (intermediarySide.getZOffset() == dz ? 1 : 0) == 2) {
+										intermediary = new Node(current, current.PathNode.assignPathSide(intermediarySide));
 										break;
 									}
 								}
 							} else {
 								for(Direction intermediarySide : getPathableSidesWithFallback(next)) {
-									if(intermediarySide != nextSide && (intermediarySide.getXOffset() == -dx ? 1 : 0) + (intermediarySide.getYOffset() == -dy ? 1 : 0) + (intermediarySide.getZOffset() == -dz ? 1 : 0) == 2) {
+									if(intermediarySide != nextSide && (intermediarySide.getOffsetX() == -dx ? 1 : 0) + (intermediarySide.getOffsetY() == -dy ? 1 : 0) + (intermediarySide.getZOffset() == -dz ? 1 : 0) == 2) {
 										intermediary = new Node(current, next.assignPathSide(intermediarySide));
 										break;
 									}
