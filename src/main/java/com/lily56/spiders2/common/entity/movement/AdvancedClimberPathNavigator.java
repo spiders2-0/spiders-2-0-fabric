@@ -37,7 +37,7 @@ public class AdvancedClimberPathNavigator<T extends MobEntity & IClimberEntity> 
 		this.climber = entity;
 
 		if(this.nodeMaker instanceof AdvancedLandPathNodeMaker) {
-			AdvancedLandPathNodeMaker processor = (AdvancedLandPathNodeMaker) this.nodeProcessor;
+			AdvancedLandPathNodeMaker processor = (AdvancedLandPathNodeMaker) this.getNodeMaker;
 			processor.setStartPathOnGround(false);
 			processor.setCanPathWalls(canPathWalls);
 			processor.setCanPathCeiling(canPathCeiling);

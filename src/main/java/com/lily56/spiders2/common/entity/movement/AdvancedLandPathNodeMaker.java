@@ -2,6 +2,9 @@ package com.lily56.spiders2.common.entity.movement;
 
 import java.util.EnumSet;
 
+import net.minecraft.entity.ai.pathing.PathNode;
+import net.minecraft.util.math.*;
+import net.minecraft.world.BlockView;
 import org.jetbrains.annotations.Nullable;
 import it.unimi.dsi.fastutil.longs.Long2LongMap;
 import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap;
@@ -17,11 +20,7 @@ import net.minecraft.fluid.Fluids;
 import net.minecraft.entity.ai.pathing.PathNodeType;
 import net.minecraft.entity.ai.pathing.LandPathNodeMaker;
 
-import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Direction.Axis;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.Vec3i;
 import net.minecraft.world.chunk.ChunkCache;
 
 
@@ -60,7 +59,7 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 
 	private final Long2LongMap pathNodeTypeCache = new Long2LongOpenHashMap();
 	private final Long2ObjectMap<PathNodeType> rawPathNodeTypeCache = new Long2ObjectOpenHashMap<>();
-	private final Object2BooleanMap<AxisAlignedBB> aabbCollisionCache = new Object2BooleanOpenHashMap<>();
+	private final Object2BooleanMap<Box> aabbCollisionCache = new Object2BooleanOpenHashMap<>();
 
 	protected boolean alwaysAllowDiagonals = true;
 
@@ -120,14 +119,14 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 		this.advancedPathFindingEntity.pathFinderCleanup();
 	}
 
-	private boolean checkAabbCollision(AxisAlignedBB aabb) {
+	private boolean checkAabbCollision(Box aabb) {
 		return this.aabbCollisionCache.computeIfAbsent(aabb, (p_237237_2_) -> {
-			return !this.blockaccess.hasNoCollisions(this.entity, aabb);
+			return !this.cachedWorld.hasNoCollisions(this.entity, aabb);
 		});
 	}
 
 	@Override
-	public PathPoint getStart() {
+	public PathNode getStart() {
 		double x = this.entity.getPosX();
 		double y = this.entity.getPosY();
 		double z = this.entity.getPosZ();
@@ -136,7 +135,7 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 
 		int by = MathHelper.floor(y);
 
-		BlockState state = this.blockaccess.getBlockState(checkPos.setPos(x, by, z));
+		BlockState state = this.cachedWorld.getBlockState(checkPos.setPos(x, by, z));
 
 		if(!this.entity.func_230285_a_(state.getFluidState().getFluid())) {
 			if(this.getCanSwim() && this.entity.isInWater()) {
@@ -147,20 +146,20 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 					}
 
 					++by;
-					state = this.blockaccess.getBlockState(checkPos.setPos(x, by, z));
+					state = this.cachedWorld.getBlockState(checkPos.setPos(x, by, z));
 				}
 			} else if(this.entity.func_233570_aj_() || !this.startFromGround) {
 				by = MathHelper.floor(y + Math.min(0.5D, Math.max(this.entity.getHeight() - 0.1f, 0.0D)));
 			} else {
 				BlockPos blockpos;
-				for(blockpos = this.entity.func_233580_cy_(); (this.blockaccess.getBlockState(blockpos).isAir() || this.blockaccess.getBlockState(blockpos).allowsMovement(this.blockaccess, blockpos, PathType.LAND)) && blockpos.getY() > 0; blockpos = blockpos.down()) { }
+				for(blockpos = this.entity.func_233580_cy_(); (this.cachedWorld.getBlockState(blockpos).isAir() || this.cachedWorld.getBlockState(blockpos).allowsMovement(this.cachedWorld, blockpos, PathType.LAND)) && blockpos.getY() > 0; blockpos = blockpos.down()) { }
 
 				by = blockpos.up().getY();
 			}
 		} else {
 			while(this.entity.func_230285_a_(state.getFluidState().getFluid())) {
 				++by;
-				state = this.blockaccess.getBlockState(checkPos.setPos(x, by, z));
+				state = this.cachedWorld.getBlockState(checkPos.setPos(x, by, z));
 			}
 
 			--by;
@@ -172,7 +171,7 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 		long packed = this.removeNonStartingSides(this.getDirectionalPathNodeTypeCached(this.entity, startPos.getX(), startPos.getY(), startPos.getZ()));
 		DirectionalPathNode startPathPoint = this.openPoint(startPos.getX(), startPos.getY(), startPos.getZ(), packed, false);
 		startPathPoint.nodeType = unpackNodeType(packed);
-		startPathPoint.costMalus = this.entity.getPathPriority(startPathPoint.nodeType);
+		startPathPoint.costMalus = this.entity.getPathfindingPenalty(startPathPoint.nodeType);
 
 		startPos = this.findSuitableStartingPosition(startPos, startPathPoint);
 
@@ -180,17 +179,17 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 			packed = this.removeNonStartingSides(this.getDirectionalPathNodeTypeCached(this.entity, startPos.getX(), startPos.getY(), startPos.getZ()));
 			startPathPoint = this.openPoint(startPos.getX(), startPos.getY(), startPos.getZ(), packed, false);
 			startPathPoint.nodeType = unpackNodeType(packed);
-			startPathPoint.costMalus = this.entity.getPathPriority(startPathPoint.nodeType);
+			startPathPoint.costMalus = this.entity.getPathfindingPenalty(startPathPoint.nodeType);
 		}
 
-		if(this.entity.getPathPriority(startPathPoint.nodeType) < 0.0F) {
-			AxisAlignedBB aabb = this.entity.getBoundingBox();
+		if(this.entity.getPathfindingPenalty(startPathPoint.nodeType) < 0.0F) {
+			Box aabb = this.entity.getBoundingBox();
 
 			if(this.isSafeStartingPosition(checkPos.setPos(aabb.minX, by, aabb.minZ)) || this.isSafeStartingPosition(checkPos.setPos(aabb.minX, by, aabb.maxZ)) || this.isSafeStartingPosition(checkPos.setPos(aabb.maxX, by, aabb.minZ)) || this.isSafeStartingPosition(checkPos.setPos(aabb.maxX, by, aabb.maxZ))) {
 				packed = this.removeNonStartingSides(this.getDirectionalPathNodeTypeCached(this.entity, checkPos.getX(), checkPos.getY(), checkPos.getZ()));
 				startPathPoint = this.openPoint(checkPos.getX(), checkPos.getY(), checkPos.getZ(), packed, false);
 				startPathPoint.nodeType = unpackNodeType(packed);
-				startPathPoint.costMalus = this.entity.getPathPriority(startPathPoint.nodeType);
+				startPathPoint.costMalus = this.entity.getPathfindingPenalty(startPathPoint.nodeType);
 			}
 		}
 
@@ -221,7 +220,7 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 			for(int xo = -1; xo <= 1; xo++) {
 				for(int yo = -1; yo <= 1; yo++) {
 					for(int zo = -1; zo <= 1; zo++) {
-						if(xo != avoidedOffset.getXOffset() && yo != avoidedOffset.getYOffset() && zo != avoidedOffset.getZOffset()) {
+						if(xo != avoidedOffset.getOffsetX() && yo != avoidedOffset.getOffsetY() && zo != avoidedOffset.getOffsetZ()) {
 							BlockPos offsetPos = pos.add(xo, yo, zo);
 
 							long packed = this.getDirectionalPathNodeTypeCached(this.entity, offsetPos.getX(), offsetPos.getY(), offsetPos.getZ());
@@ -241,15 +240,15 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 
 	private boolean isSafeStartingPosition(BlockPos pos) {
 		PathNodeType pathnodetype = unpackNodeType(this.getDirectionalPathNodeTypeCached(this.entity, pos.getX(), pos.getY(), pos.getZ()));
-		return this.entity.getPathPriority(pathnodetype) >= 0.0F;
+		return this.entity.getPathfindingPenalty(pathnodetype) >= 0.0F;
 	}
 
-	private boolean allowDiagonalPathOptions(PathPoint[] options) {
+	private boolean allowDiagonalPathOptions(PathNode[] options) {
 		return this.alwaysAllowDiagonals || options == null || options.length == 0 || ((options[0] == null || options[0].nodeType == PathNodeType.OPEN || options[0].costMalus != 0.0F) && (options.length <= 1 || (options[1] == null || options[1].nodeType == PathNodeType.OPEN || options[1].costMalus != 0.0F)));
 	}
 
 	@Override
-	public int func_222859_a(PathPoint[] pathOptions, PathPoint currentPointIn) {
+	public int func_222859_a(PathNode[] pathOptions, PathNode currentPointIn) {
 		DirectionalPathNode currentPoint;
 		if(currentPointIn instanceof DirectionalPathNode) {
 			currentPoint = (DirectionalPathNode) currentPointIn;
@@ -262,11 +261,11 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 
 		PathNodeType nodeTypeAbove = unpackNodeType(this.getDirectionalPathNodeTypeCached(this.entity, currentPoint.x, currentPoint.y + 1, currentPoint.z));
 
-		if(this.entity.getPathPriority(nodeTypeAbove) >= 0.0F) {
+		if(this.entity.getPathfindingPenalty(nodeTypeAbove) >= 0.0F) {
 			stepHeight = MathHelper.floor(Math.max(1.0F, this.entity.stepHeight));
 		}
 
-		double height = currentPoint.y - getGroundY(this.blockaccess, new BlockPos(currentPoint.x, currentPoint.y, currentPoint.z));
+		double height = currentPoint.y - getGroundY(this.cachedWorld, new BlockPos(currentPoint.x, currentPoint.y, currentPoint.z));
 
 		DirectionalPathNode[] pathsPZ = this.getSafePoints(currentPoint.x, currentPoint.y, currentPoint.z + 1, stepHeight, height, PZ, this.checkObstructions);
 		DirectionalPathNode[] pathsNX = this.getSafePoints(currentPoint.x - 1, currentPoint.y, currentPoint.z, stepHeight, height, NX, this.checkObstructions);
@@ -329,7 +328,7 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 		boolean is3DPathing = this.pathableFacings.size() >= 3;
 
 		if(allowDiagonalNZ && allowDiagonalNX) {
-			DirectionalPathNode[] pathsNXNZ = this.getSafePoints(currentPoint.x - this.entitySizeX, currentPoint.y, currentPoint.z - 1, stepHeight, height, NXNZ, this.checkObstructions);
+			DirectionalPathNode[] pathsNXNZ = this.getSafePoints(currentPoint.x - this.entityBlockXSize, currentPoint.y, currentPoint.z - 1, stepHeight, height, NXNZ, this.checkObstructions);
 
 			boolean foundDiagonal = false;
 
@@ -340,8 +339,8 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 				}
 			}
 
-			if(!foundDiagonal && (this.entitySizeX != 1 || this.entitySizeZ != 1)) {
-				pathsNXNZ = this.getSafePoints(currentPoint.x - 1, currentPoint.y, currentPoint.z - this.entitySizeZ, stepHeight, height, NXNZ, this.checkObstructions);
+			if(!foundDiagonal && (this.entityBlockXSize != 1 || this.entityBlockZSize != 1)) {
+				pathsNXNZ = this.getSafePoints(currentPoint.x - 1, currentPoint.y, currentPoint.z - this.entityBlockZSize, stepHeight, height, NXNZ, this.checkObstructions);
 
 				for(int k = 0; k < pathsNXNZ.length; k++) {
 					if(this.isSuitablePoint(pathsNX, currentPoint.x - 1, currentPoint.y, currentPoint.z, pathsNZ, currentPoint.x, currentPoint.y, currentPoint.z - 1, pathsNXNZ[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
@@ -372,7 +371,7 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 		}
 
 		if(allowDiagonalPZ && allowDiagonalPX) {
-			DirectionalPathNode[] pathsPXPZ = this.getSafePoints(currentPoint.x + this.entitySizeX, currentPoint.y, currentPoint.z + 1, stepHeight, height, PXPZ, this.checkObstructions);
+			DirectionalPathNode[] pathsPXPZ = this.getSafePoints(currentPoint.x + this.entityBlockXSize, currentPoint.y, currentPoint.z + 1, stepHeight, height, PXPZ, this.checkObstructions);
 
 			boolean foundDiagonal = false;
 
@@ -383,8 +382,8 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 				}
 			}
 
-			if(!foundDiagonal && (this.entitySizeX != 1 || this.entitySizeZ != 1)) {
-				pathsPXPZ = this.getSafePoints(currentPoint.x + 1, currentPoint.y, currentPoint.z + this.entitySizeZ, stepHeight, height, PXPZ, this.checkObstructions);
+			if(!foundDiagonal && (this.entityBlockXSize != 1 || this.entityBlockZSize != 1)) {
+				pathsPXPZ = this.getSafePoints(currentPoint.x + 1, currentPoint.y, currentPoint.z + this.entityBlockZSize, stepHeight, height, PXPZ, this.checkObstructions);
 
 				for(int k = 0; k < pathsPXPZ.length; k++) {
 					if(this.isSuitablePoint(pathsPX, currentPoint.x + 1, currentPoint.y, currentPoint.z, pathsPZ, currentPoint.x, currentPoint.y, currentPoint.z + 1, pathsPXPZ[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
@@ -399,7 +398,7 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 			boolean allowDiagonalNY = this.allowDiagonalPathOptions(pathsNY);
 
 			if(allowDiagonalNY && allowDiagonalNX) {
-				DirectionalPathNode[] pathsNYNX = this.getSafePoints(currentPoint.x - this.entitySizeX, currentPoint.y - 1, currentPoint.z, stepHeight, height, NXNY, this.checkObstructions);
+				DirectionalPathNode[] pathsNYNX = this.getSafePoints(currentPoint.x - this.entityBlockXSize, currentPoint.y - 1, currentPoint.z, stepHeight, height, NXNY, this.checkObstructions);
 
 				boolean foundDiagonal = false;
 
@@ -410,8 +409,8 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 					}
 				}
 
-				if(!foundDiagonal && (this.entitySizeX != 1 || this.entitySizeY != 1)) {
-					pathsNYNX = this.getSafePoints(currentPoint.x - 1, currentPoint.y - this.entitySizeY, currentPoint.z, stepHeight, height, NXNY, this.checkObstructions);
+				if(!foundDiagonal && (this.entityBlockXSize != 1 || this.entityBlockYSize != 1)) {
+					pathsNYNX = this.getSafePoints(currentPoint.x - 1, currentPoint.y - this.entityBlockYSize, currentPoint.z, stepHeight, height, NXNY, this.checkObstructions);
 
 					for(int k = 0; k < pathsNYNX.length; k++) {
 						if(this.isSuitablePoint(pathsNY, currentPoint.x, currentPoint.y - 1, currentPoint.z, pathsNX, currentPoint.x - 1, currentPoint.y, currentPoint.z, pathsNYNX[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
@@ -432,7 +431,7 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 			}
 
 			if(allowDiagonalNY && allowDiagonalNZ) {
-				DirectionalPathNode[] pathsNYNZ = this.getSafePoints(currentPoint.x, currentPoint.y - this.entitySizeY, currentPoint.z - 1, stepHeight, height, NYNZ, this.checkObstructions);
+				DirectionalPathNode[] pathsNYNZ = this.getSafePoints(currentPoint.x, currentPoint.y - this.entityBlockYSize, currentPoint.z - 1, stepHeight, height, NYNZ, this.checkObstructions);
 
 				boolean foundDiagonal = false;
 
@@ -443,8 +442,8 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 					}
 				}
 
-				if(!foundDiagonal && (this.entitySizeY != 1 || this.entitySizeZ != 1)) {
-					pathsNYNZ = this.getSafePoints(currentPoint.x, currentPoint.y - 1, currentPoint.z - this.entitySizeZ, stepHeight, height, NYNZ, this.checkObstructions);
+				if(!foundDiagonal && (this.entityBlockYSize != 1 || this.entityBlockZSize != 1)) {
+					pathsNYNZ = this.getSafePoints(currentPoint.x, currentPoint.y - 1, currentPoint.z - this.entityBlockZSize, stepHeight, height, NYNZ, this.checkObstructions);
 
 					for(int k = 0; k < pathsNYNZ.length; k++) {
 						if(this.isSuitablePoint(pathsNY, currentPoint.x, currentPoint.y - 1, currentPoint.z, pathsNZ, currentPoint.x, currentPoint.y, currentPoint.z - 1, pathsNYNZ[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
@@ -475,7 +474,7 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 			}
 
 			if(allowDiagonalPY && allowDiagonalPX) {
-				DirectionalPathNode[] pathsPYPX = this.getSafePoints(currentPoint.x + this.entitySizeX, currentPoint.y + 1, currentPoint.z, stepHeight, height, PXPY, this.checkObstructions);
+				DirectionalPathNode[] pathsPYPX = this.getSafePoints(currentPoint.x + this.entityBlockXSize, currentPoint.y + 1, currentPoint.z, stepHeight, height, PXPY, this.checkObstructions);
 
 				boolean foundDiagonal = false;
 
@@ -486,8 +485,8 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 					}
 				}
 
-				if(!foundDiagonal && (this.entitySizeX != 1 || this.entitySizeY != 1)) {
-					pathsPYPX = this.getSafePoints(currentPoint.x + 1, currentPoint.y + this.entitySizeY, currentPoint.z, stepHeight, height, PXPY, this.checkObstructions);
+				if(!foundDiagonal && (this.entityBlockXSize != 1 || this.entityBlockYSize != 1)) {
+					pathsPYPX = this.getSafePoints(currentPoint.x + 1, currentPoint.y + this.entityBlockYSize, currentPoint.z, stepHeight, height, PXPY, this.checkObstructions);
 
 					for(int k = 0; k < pathsPYPX.length; k++) {
 						if(this.isSuitablePoint(pathsPY, currentPoint.x, currentPoint.y + 1, currentPoint.z, pathsPX, currentPoint.x + 1, currentPoint.y, currentPoint.z, pathsPYPX[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
@@ -508,7 +507,7 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 			}
 
 			if(allowDiagonalPY && allowDiagonalPZ) {
-				DirectionalPathNode[] pathsPYPZ = this.getSafePoints(currentPoint.x, currentPoint.y + this.entitySizeY, currentPoint.z + 1, stepHeight, height, PYPZ, this.checkObstructions);
+				DirectionalPathNode[] pathsPYPZ = this.getSafePoints(currentPoint.x, currentPoint.y + this.entityBlockYSize, currentPoint.z + 1, stepHeight, height, PYPZ, this.checkObstructions);
 
 				boolean foundDiagonal = false;
 
@@ -519,8 +518,8 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 					}
 				}
 
-				if(!foundDiagonal && (this.entitySizeY != 1 || this.entitySizeZ != 1)) {
-					pathsPYPZ = this.getSafePoints(currentPoint.x, currentPoint.y + 1, currentPoint.z + this.entitySizeZ, stepHeight, height, PYPZ, this.checkObstructions);
+				if(!foundDiagonal && (this.entityBlockYSize != 1 || this.entityBlockZSize != 1)) {
+					pathsPYPZ = this.getSafePoints(currentPoint.x, currentPoint.y + 1, currentPoint.z + this.entityBlockZSize, stepHeight, height, PYPZ, this.checkObstructions);
 
 					for(int k = 0; k < pathsPYPZ.length; k++) {
 						if(this.isSuitablePoint(pathsPY, currentPoint.x, currentPoint.y + 1, currentPoint.z, pathsPZ, currentPoint.x, currentPoint.y, currentPoint.z + 1, pathsPYPZ[k], currentPoint, this.checkObstructions, fitsThroughPoles, is3DPathing)) {
@@ -628,9 +627,9 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 	}
 
 	protected DirectionalPathNode openPoint(int x, int y, int z, long packed, boolean isDrop) {
-		int hash = PathPoint.makeHash(x, y, z);
+		int hash = PathNode.hash(x, y, z);
 
-		PathPoint point = this.pointMap.computeIfAbsent(hash, (key) -> {
+		PathNode point = this.pointMap.computeIfAbsent(hash, (key) -> {
 			return new DirectionalPathNode(x, y, z, packed, isDrop);
 		});
 
@@ -648,7 +647,7 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 
 		BlockPos pos = new BlockPos(x, y, z);
 
-		double blockHeight = y - getGroundY(this.blockaccess, new BlockPos(x, y, z));
+		double blockHeight = y - getGroundY(this.cachedWorld, new BlockPos(x, y, z));
 
 		if (blockHeight - height > 1.125D) {
 			return new DirectionalPathNode[0];
@@ -657,7 +656,7 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 			long packed = initialPacked;
 			PathNodeType nodeType = unpackNodeType(packed);
 
-			float malus = this.advancedPathFindingEntity.getPathingMalus(this.blockaccess, this.entity, nodeType, pos, direction, dir -> unpackDirection(dir, initialPacked)); //Replaces EntityLiving#getPathPriority
+			float malus = this.advancedPathFindingEntity.getPathingMalus(this.cachedWorld, this.entity, nodeType, pos, direction, dir -> unpackDirection(dir, initialPacked)); //Replaces EntityLiving#getPathfindingPenalty
 
 			double halfWidth = (double)this.entity.getWidth() / 2.0D;
 
@@ -688,12 +687,12 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 						double offsetX = (x - direction.getX()) + 0.5D;
 						double offsetZ = (z - direction.getY()) + 0.5D;
 
-						AxisAlignedBB enclosingAabb = new AxisAlignedBB(
+						Box enclosingAabb = new Box(
 								offsetX - halfWidth,
-								getGroundY(this.blockaccess, new BlockPos(offsetX, (double)(y + 1), offsetZ)) + 0.001D,
+								getGroundY(this.cachedWorld, new BlockPos(offsetX, (double)(y + 1), offsetZ)) + 0.001D,
 								offsetZ - halfWidth,
 								offsetX + halfWidth,
-								(double)this.entity.getHeight() + getGroundY(this.blockaccess, new BlockPos(directPathPoint.x, directPathPoint.y, directPathPoint.z)) - 0.002D,
+								(double)this.entity.getHeight() + getGroundY(this.cachedWorld, new BlockPos(directPathPoint.x, directPathPoint.y, directPathPoint.z)) - 0.002D,
 								offsetZ + halfWidth);
 						if (this.checkAabbCollision(enclosingAabb)) {
 							directPathPoint = null;
@@ -704,7 +703,7 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 				if(nodeType == PathNodeType.OPEN) {
 					directPathPoint = null;
 
-					AxisAlignedBB checkAabb = new AxisAlignedBB((double)x - halfWidth + 0.5D, (double)y + 0.001D, (double)z - halfWidth + 0.5D, (double)x + halfWidth + 0.5D, (double)((float)y + this.entity.getHeight()), (double)z + halfWidth + 0.5D);
+					Box checkAabb = new Box((double)x - halfWidth + 0.5D, (double)y + 0.001D, (double)z - halfWidth + 0.5D, (double)x + halfWidth + 0.5D, (double)((float)y + this.entity.getHeight()), (double)z + halfWidth + 0.5D);
 
 					if(this.checkAabbCollision(checkAabb)) {
 						result[0] = null;
@@ -715,7 +714,7 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 						for(int i = 0; i < this.pathableFacingsArray.length; i++) {
 							Direction pathableFacing = this.pathableFacingsArray[i];
 
-							long packedAtFacing = this.getDirectionalPathNodeTypeCached(this.entity, x + pathableFacing.getXOffset() * this.pathingSizeOffsetX, y + (pathableFacing == Direction.DOWN ? -1 : pathableFacing == Direction.UP ? this.pathingSizeOffsetY : 0), z + pathableFacing.getZOffset() * this.pathingSizeOffsetZ);
+							long packedAtFacing = this.getDirectionalPathNodeTypeCached(this.entity, x + pathableFacing.getOffsetX() * this.pathingSizeOffsetX, y + (pathableFacing == Direction.DOWN ? -1 : pathableFacing == Direction.UP ? this.pathingSizeOffsetY : 0), z + pathableFacing.getOffsetZ() * this.pathingSizeOffsetZ);
 							PathNodeType nodeTypeAtFacing = unpackNodeType(packedAtFacing);
 
 							if(nodeTypeAtFacing == PathNodeType.BLOCKED) {
@@ -746,7 +745,7 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 						packed = this.getDirectionalPathNodeTypeCached(this.entity, x, y, z);
 						nodeType = unpackNodeType(packed);
 
-						malus = this.entity.getPathPriority(nodeType);
+						malus = this.entity.getPathfindingPenalty(nodeType);
 
 						if(((this.entity.getMaxFallHeight() > 0 && nodeType != PathNodeType.OPEN) || nodeType == PathNodeType.WATER || nodeType == PathNodeType.LAVA) && malus >= 0.0F) {
 							fallPathPoint = this.openPoint(x, y, z, packed, true);
@@ -766,7 +765,7 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 						packed = this.getDirectionalPathNodeTypeCached(this.entity, x, preFallY, z);
 						nodeType = unpackNodeType(packed);
 
-						malus = this.entity.getPathPriority(nodeType);
+						malus = this.entity.getPathfindingPenalty(nodeType);
 
 						if(nodeType != PathNodeType.OPEN && malus >= 0.0F) {
 							if(fallPathPoint != null) {
@@ -828,8 +827,8 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 	}
 
 	protected long getDirectionalPathNodeTypeCached(MobEntity entitylivingIn, int x, int y, int z) {
-		return this.pathNodeTypeCache.computeIfAbsent(BlockPos.pack(x, y, z), (key) -> {
-			return this.getDirectionalPathNodeType(this.blockaccess, x, y, z, entitylivingIn, this.entitySizeX, this.entitySizeY, this.entitySizeZ, this.getCanOpenDoors(), this.getCanEnterDoors());
+		return this.pathNodeTypeCache.computeIfAbsent(BlockPos.asLong(x, y, z), (key) -> {
+			return this.getDirectionalPathNodeType(this.cachedWorld, x, y, z, entitylivingIn, this.entityBlockXSize, this.entityBlockYSize, this.entityBlockZSize, this.canOpenDoors(), this.canEnterOpenDoors());
 		});
 	}
 
@@ -858,16 +857,16 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 	}
 
 	@Override
-	public PathNodeType getPathNodeType(IBlockReader blockaccessIn, int x, int y, int z, MobEntity entity, int xSize, int ySize, int zSize, boolean canBreakDoorsIn, boolean canEnterDoorsIn) {
-		return unpackNodeType(this.getDirectionalPathNodeType(blockaccessIn, x, y, z, entity, xSize, ySize, zSize, canBreakDoorsIn, canEnterDoorsIn));
+	public PathNodeType getPathNodeType(BlockView world, int x, int y, int z, MobEntity entity, int xSize, int ySize, int zSize, boolean canBreakDoorsIn, boolean canEnterDoorsIn) {
+		return unpackNodeType(this.getDirectionalPathNodeType(world, x, y, z, entity, xSize, ySize, zSize, canBreakDoorsIn, canEnterDoorsIn));
 	}
 
-	protected long getDirectionalPathNodeType(IBlockReader blockaccessIn, int x, int y, int z, MobEntity entity, int xSize, int ySize, int zSize, boolean canBreakDoorsIn, boolean canEnterDoorsIn) {
+	protected long getDirectionalPathNodeType(BlockView world, int x, int y, int z, MobEntity entity, int xSize, int ySize, int zSize, boolean canBreakDoorsIn, boolean canEnterDoorsIn) {
 		BlockPos pos = new BlockPos(entity.getPositionVec());
 
 		EnumSet<PathNodeType> applicablePathNodeTypes = EnumSet.noneOf(PathNodeType.class);
 
-		long centerPacked = this.getDirectionalPathNodeType(blockaccessIn, x, y, z, xSize, ySize, zSize, canBreakDoorsIn, canEnterDoorsIn, applicablePathNodeTypes, PathNodeType.BLOCKED, pos);
+		long centerPacked = this.getDirectionalPathNodeType(world, x, y, z, xSize, ySize, zSize, canBreakDoorsIn, canEnterDoorsIn, applicablePathNodeTypes, PathNodeType.BLOCKED, pos);
 		PathNodeType centerPathNodeType = unpackNodeType(centerPacked);
 
 		if(applicablePathNodeTypes.contains(PathNodeType.FENCE)) {
@@ -878,18 +877,18 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 			PathNodeType selectedPathNodeType = PathNodeType.BLOCKED;
 
 			for(PathNodeType applicablePathNodeType : applicablePathNodeTypes) {
-				if(entity.getPathPriority(applicablePathNodeType) < 0.0F) {
+				if(entity.getPathfindingPenalty(applicablePathNodeType) < 0.0F) {
 					return packNodeType(applicablePathNodeType, centerPacked);
 				}
 
-				float p1 = entity.getPathPriority(applicablePathNodeType);
-				float p2 = entity.getPathPriority(selectedPathNodeType);
+				float p1 = entity.getPathfindingPenalty(applicablePathNodeType);
+				float p2 = entity.getPathfindingPenalty(selectedPathNodeType);
 				if(p1 > p2 || (p1 == p2 && !(selectedPathNodeType == PathNodeType.WALKABLE && applicablePathNodeType == PathNodeType.OPEN)) || (p1 == p2 && selectedPathNodeType == PathNodeType.OPEN && applicablePathNodeType == PathNodeType.WALKABLE)) {
 					selectedPathNodeType = applicablePathNodeType;
 				}
 			}
 
-			if(centerPathNodeType == PathNodeType.OPEN && entity.getPathPriority(selectedPathNodeType) == 0.0F) {
+			if(centerPathNodeType == PathNodeType.OPEN && entity.getPathfindingPenalty(selectedPathNodeType) == 0.0F) {
 				return packNodeType(PathNodeType.OPEN, 0L);
 			} else {
 				return packNodeType(selectedPathNodeType, centerPacked);
@@ -897,7 +896,7 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 		}
 	}
 
-	protected long getDirectionalPathNodeType(IBlockReader blockaccessIn, int x, int y, int z, int xSize, int ySize, int zSize, boolean canOpenDoorsIn, boolean canEnterDoorsIn, EnumSet<PathNodeType> nodeTypeEnum, PathNodeType nodeType, BlockPos pos) {
+	protected long getDirectionalPathNodeType(BlockView world, int x, int y, int z, int xSize, int ySize, int zSize, boolean canOpenDoorsIn, boolean canEnterDoorsIn, EnumSet<PathNodeType> nodeTypeEnum, PathNodeType nodeType, BlockPos pos) {
 		long packed = 0L;
 
 		for(int ox = 0; ox < xSize; ++ox) {
@@ -907,10 +906,10 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 					int by = oy + y;
 					int bz = oz + z;
 
-					long packedAdjusted = this.getDirectionalPathNodeType(blockaccessIn, bx, by, bz);
+					long packedAdjusted = this.getDirectionalPathNodeType(world, bx, by, bz);
 					PathNodeType adjustedNodeType = unpackNodeType(packedAdjusted);
 
-					adjustedNodeType = this.func_215744_a(blockaccessIn, canOpenDoorsIn, canEnterDoorsIn, pos, adjustedNodeType);
+					adjustedNodeType = this.func_215744_a(world, canOpenDoorsIn, canEnterDoorsIn, pos, adjustedNodeType);
 
 					if (ox == 0 && oy == 0 && oz == 0) {
 						packed = packNodeType(adjustedNodeType, packedAdjusted);
@@ -925,26 +924,26 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 	}
 
 	@Override
-	public PathNodeType getPathNodeType(IBlockReader blockaccessIn, int x, int y, int z) {
-		return unpackNodeType(this.getDirectionalPathNodeType(blockaccessIn, x, y, z));
+	public PathNodeType getPathNodeType(BlockView world, int x, int y, int z) {
+		return unpackNodeType(this.getDirectionalPathNodeType(world, x, y, z));
 	}
 
-	protected long getDirectionalPathNodeType(IBlockReader blockaccessIn, int x, int y, int z) {
-		return getDirectionalPathNodeType(this.rawPathNodeTypeCache, blockaccessIn, x, y, z, this.pathingSizeOffsetX, this.pathingSizeOffsetY, this.pathingSizeOffsetZ, this.pathableFacingsArray);
+	protected long getDirectionalPathNodeType(BlockView world, int x, int y, int z) {
+		return getDirectionalPathNodeType(this.rawPathNodeTypeCache, world, x, y, z, this.pathingSizeOffsetX, this.pathingSizeOffsetY, this.pathingSizeOffsetZ, this.pathableFacingsArray);
 	}
 
-	protected static PathNodeType getRawPathNodeTypeCached(Long2ObjectMap<PathNodeType> cache, IBlockReader blockaccessIn, BlockPos.Mutable pos) {
-		return cache.computeIfAbsent(BlockPos.pack(pos.getX(), pos.getY(), pos.getZ()), (key) -> {
-			return func_237238_b_(blockaccessIn, pos); //getPathNodeTypeRaw
+	protected static PathNodeType getRawPathNodeTypeCached(Long2ObjectMap<PathNodeType> cache, BlockView world, BlockPos.Mutable pos) {
+		return cache.computeIfAbsent(BlockPos.asLong(pos.getX(), pos.getY(), pos.getZ()), (key) -> {
+			return func_237238_b_(world, pos); //getPathNodeTypeRaw
 		});
 	}
 
-	protected static long getDirectionalPathNodeType(Long2ObjectMap<PathNodeType> rawPathNodeTypeCache, IBlockReader blockaccessIn, int x, int y, int z, int pathingSizeOffsetX, int pathingSizeOffsetY, int pathingSizeOffsetZ, Direction[] pathableFacings) {
+	protected static long getDirectionalPathNodeType(Long2ObjectMap<PathNodeType> rawPathNodeTypeCache, BlockView world, int x, int y, int z, int pathingSizeOffsetX, int pathingSizeOffsetY, int pathingSizeOffsetZ, Direction[] pathableFacings) {
 		long packed = 0L;
 
 		BlockPos.Mutable pos = new BlockPos.Mutable();
 
-		PathNodeType nodeType = getRawPathNodeTypeCached(rawPathNodeTypeCache, blockaccessIn, pos.setPos(x, y, z));
+		PathNodeType nodeType = getRawPathNodeTypeCached(rawPathNodeTypeCache, world, pos.setPos(x, y, z));
 		boolean isWalkable = false;
 
 		if(nodeType == PathNodeType.OPEN && y >= 1) {
@@ -953,14 +952,14 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 
 				int checkHeight = pathableFacing.getAxis() != Axis.Y ? Math.min(4, pathingSizeOffsetY - 1) : 0;
 
-				int cx = x + pathableFacing.getXOffset() * pathingSizeOffsetX;
+				int cx = x + pathableFacing.getOffsetX() * pathingSizeOffsetX;
 				int cy = y + (pathableFacing == Direction.DOWN ? -1 : pathableFacing == Direction.UP ? pathingSizeOffsetY : 0);
-				int cz = z + pathableFacing.getZOffset() * pathingSizeOffsetZ;
+				int cz = z + pathableFacing.getOffsetZ() * pathingSizeOffsetZ;
 
 				for(int yo = 0; yo <= checkHeight; yo++) {
 					pos.setPos(cx, cy + yo, cz);
 
-					PathNodeType offsetNodeType = getRawPathNodeTypeCached(rawPathNodeTypeCache, blockaccessIn, pos); 
+					PathNodeType offsetNodeType = getRawPathNodeTypeCached(rawPathNodeTypeCache, world, pos);
 					nodeType = offsetNodeType != PathNodeType.WALKABLE && offsetNodeType != PathNodeType.OPEN && offsetNodeType != PathNodeType.WATER && offsetNodeType != PathNodeType.LAVA ? PathNodeType.WALKABLE : PathNodeType.OPEN;
 
 					if(offsetNodeType == PathNodeType.DAMAGE_FIRE) {
@@ -990,7 +989,7 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 		}
 
 		if(isWalkable) {
-			nodeType = func_237232_a_(blockaccessIn, pos.setPos(x, y, z), PathNodeType.WALKABLE); //checkNeighborBlocks
+			nodeType = func_237232_a_(world, pos.setPos(x, y, z), PathNodeType.WALKABLE); //checkNeighborBlocks
 		}
 
 		return packNodeType(nodeType, packed);
