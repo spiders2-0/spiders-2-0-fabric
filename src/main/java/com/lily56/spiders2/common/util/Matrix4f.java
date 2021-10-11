@@ -1,4 +1,4 @@
-package com.lily56.spiders2.common;
+package com.lily56.spiders2.common.util;
 
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;

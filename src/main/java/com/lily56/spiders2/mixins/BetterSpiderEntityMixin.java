@@ -59,20 +59,20 @@ public abstract class BetterSpiderEntityMixin extends HostileEntity implements I
 
 	@Inject(method = "registerData()V", at = @At("HEAD"))
 	private void onRegisterData(CallbackInfo ci) {
-		this.pathFinderDebugPreview = Config.PATH_FINDER_DEBUG_PREVIEW.get();
+		this.pathFinderDebugPreview = Config.PATH_FINDER_DEBUG_PREVIEW;
 	}
 
 	@Redirect(method = "registerGoals()V", at = @At(
 			value = "INVOKE",
-			target = "Lnet/minecraft/entity/ai/goal/GoalSelector;addGoal(ILnet/minecraft/entity/ai/goal/Goal;)V"
+			target = "Lnet/minecraft/entity/ai/goal/GoalSelector;add(ILnet/minecraft/entity/ai/goal/Goal;)V"
 			))
 	private void onAddGoal(GoalSelector selector, int priority, Goal task) {
 		if(task instanceof PounceAtTargetGoal) {
-			selector.addGoal(3, new BetterLeapAtTargetGoal<>(this, 0.4f));
+			selector.add(3, new BetterLeapAtTargetGoal<>(this, 0.4f));
 		} else if(task instanceof TrackTargetGoal) {
-			selector.addGoal(2, ((TrackTargetGoal) task).setUnseenMemoryTicks(200));
+			selector.add(2, ((TrackTargetGoal) task).setMaxTimeWithoutVisibility(200));
 		} else {
-			selector.addGoal(priority, task);
+			selector.add(priority, task);
 		}
 	}
 
@@ -88,7 +88,7 @@ public abstract class BetterSpiderEntityMixin extends HostileEntity implements I
 
 	@Override
 	public boolean canAttachToSide(Direction side) {
-		if(!this.isJumping && Config.PREVENT_CLIMBING_IN_RAIN.get() && side.getAxis() != Direction.Axis.Y && this.world.isRainingAt(new BlockPos(this.getPosX(), this.getPosY() + this.getHeight() * 0.5f,  this.getPosZ()))) {
+		if(!this.isJumping && Config.PREVENT_CLIMBING_IN_RAIN && side.getAxis() != Direction.Axis.Y && this.world.isRainingAt(new BlockPos(this.getPosX(), this.getPosY() + this.getHeight() * 0.5f,  this.getPosZ()))) {
 			return false;
 		}
 		return true;
@@ -108,9 +108,9 @@ public abstract class BetterSpiderEntityMixin extends HostileEntity implements I
 	}
 
 	@Override
-	public float getPathingMalus(IBlockReader cache, MobEntity entity, PathNodeType nodeType, BlockPos pos, Vector3i direction, Predicate<Direction> sides) {
+	public float getPathingMalus(BlockView cache, MobEntity entity, PathNodeType nodeType, BlockPos pos, Vector3i direction, Predicate<Direction> sides) {
 		if(direction.getY() != 0) {
-			if(Config.PREVENT_CLIMBING_IN_RAIN.get() && !sides.test(Direction.UP) && !sides.test(Direction.DOWN) && this.world.isRainingAt(pos)) {
+			if(Config.PREVENT_CLIMBING_IN_RAIN && !sides.test(Direction.UP) && !sides.test(Direction.DOWN) && this.world.isRainingAt(pos)) {
 				return -1.0f;
 			}
 

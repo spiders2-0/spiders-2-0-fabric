@@ -1,4 +1,4 @@
-package com.lily56.spiders2.common;
+package com.lily56.spiders2.common.util;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -68,7 +68,7 @@ public class CollisionSmoothingUtil {
 		return sdfDst;
 	}
 
-	private static class BoxConsumer implements VoxelShapes.ILineConsumer {
+	private static class BoxConsumer implements VoxelShapes.BoxConsumer {
 		private int capacity = 16;
 		private int size = 0;
 
@@ -113,7 +113,7 @@ public class CollisionSmoothingUtil {
 	}
 
 	@Nullable
-	public static Pair<Vec3d, Vec3d> findClosestPoint(Consumer<VoxelShapes.ILineConsumer> consumer, Vec3d pp, Vec3d pn, float smoothingRange, float planeSmoothingRange, float boxScale, float dx, int iters, float threshold, Vec3d p) {
+	public static Pair<Vec3d, Vec3d> findClosestPoint(Consumer<VoxelShapes.BoxConsumer> consumer, Vec3d pp, Vec3d pn, float smoothingRange, float planeSmoothingRange, float boxScale, float dx, int iters, float threshold, Vec3d p) {
 		BoxConsumer boxConsumer = new BoxConsumer(p, boxScale);
 
 		consumer.accept(boxConsumer);

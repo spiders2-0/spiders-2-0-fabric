@@ -46,14 +46,8 @@ public class CachedCollisionViewer implements CollisionView {
 	}
 
 	@Override
-	public BlockEntity getTileEntity(BlockPos pos) {
-		return this.collisionReader.getBlockEntity(pos);
-	}
-
-	@Nullable
-	@Override
 	public BlockEntity getBlockEntity(BlockPos pos) {
-		return null;
+		return this.collisionReader.getBlockEntity(pos);
 	}
 
 	@Override
@@ -71,32 +65,39 @@ public class CachedCollisionViewer implements CollisionView {
 		return this.collisionReader.getWorldBorder();
 	}
 
-	//TODO: Do not return 0
-	@Nullable
 	@Override
+	public Stream<VoxelShape> getEntityCollisions(Entity entity, Box box, Predicate<Entity> predicate) {
+		return this.collisionReader.getEntityCollisions(entity, box, predicate);
+	}
+
 	public BlockView getChunkAsView(int chunkX, int chunkZ) {
-		return null;
-	}
-	//
-
-	@Override
-	public Stream<VoxelShape> getEntityCollisions(Entity entity, Box aabb, Predicate<Entity> predicate) {
-		return this.collisionReader.getEntityCollisions(entity, aabb, predicate);
-	}
-
-	@Override
-	public BlockView getBlockReader(int chunkX, int chunkZ) {
 		return this.blockReaderCache[(chunkX - minChunkX) + (chunkZ - minChunkZ) * width];
 	}
-	//TODO: Do not return 0
+
+	/**
+	 * Returns the difference in the {@linkplain #getBottomY() minimum} and
+	 * {@linkplain #getTopY() maximum} height.
+	 *
+	 * <p>This is the number of blocks that can be modified in any vertical column
+	 * within the view, or the vertical size, in blocks, of the view.
+	 *
+	 * @return the difference in the minimum and maximum height
+	 * @see #getBottomY()
+	 * @see #getTopY()
+	 */
 	@Override
 	public int getHeight() {
-		return 0;
+		return this.getHeight();
 	}
 
+	/**
+	 * Returns the bottom Y level, or height, inclusive, of this view.
+	 *
+	 * @see #getTopY()
+	 * @see #getHeight()
+	 */
 	@Override
 	public int getBottomY() {
-		return 0;
+		return this.getBottomY();
 	}
-	//
 }

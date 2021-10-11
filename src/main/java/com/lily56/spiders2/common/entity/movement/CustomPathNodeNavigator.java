@@ -84,7 +84,7 @@ public class CustomPathNodeNavigator extends PathNodeNavigator {
 		}, Function.identity()));
 
 		Path path = this.findPath(pathnode, checkpointsMap, maxDistance, checkpointRange, maxExpansionsMultiplier);
-		this.PathNodeMaker.postProcess();
+		this.PathNodeMaker.clear();
 
 		return path;
 	}

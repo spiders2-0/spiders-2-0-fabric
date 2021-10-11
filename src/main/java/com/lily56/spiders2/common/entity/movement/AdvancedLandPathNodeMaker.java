@@ -2,6 +2,7 @@ package com.lily56.spiders2.common.entity.movement;
 
 import java.util.EnumSet;
 
+import net.minecraft.world.CollisionView;
 import net.minecraft.entity.ai.pathing.PathNode;
 import net.minecraft.util.math.*;
 import net.minecraft.world.BlockView;
@@ -18,6 +19,7 @@ import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.fluid.Fluids;
 
 import net.minecraft.entity.ai.pathing.PathNodeType;
+import net.minecraft.entity.ai.pathing.PathNode;
 import net.minecraft.entity.ai.pathing.LandPathNodeMaker;
 
 import net.minecraft.util.math.Direction.Axis;
@@ -111,8 +113,8 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 	}
 
 	@Override
-	public void postProcess() {
-		super.postProcess();
+	public void clear() {
+		super.clear();
 		this.pathNodeTypeCache.clear();
 		this.rawPathNodeTypeCache.clear();
 		this.aabbCollisionCache.clear();
@@ -121,15 +123,15 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 
 	private boolean checkAabbCollision(Box aabb) {
 		return this.aabbCollisionCache.computeIfAbsent(aabb, (p_237237_2_) -> {
-			return !this.cachedWorld.hasNoCollisions(this.entity, aabb);
+			return !this.cachedWorld.isSpaceEmpty(this.entity, aabb);
 		});
 	}
 
 	@Override
 	public PathNode getStart() {
-		double x = this.entity.getPosX();
-		double y = this.entity.getPosY();
-		double z = this.entity.getPosZ();
+		double x = this.entity.getX();
+		double y = this.entity.getY();
+		double z = this.entity.getZ();
 
 		BlockPos.Mutable checkPos = new BlockPos.Mutable();
 
@@ -137,10 +139,10 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 
 		BlockState state = this.cachedWorld.getBlockState(checkPos.setPos(x, by, z));
 
-		if(!this.entity.func_230285_a_(state.getFluidState().getFluid())) {
-			if(this.getCanSwim() && this.entity.isInWater()) {
+		if(!this.entity.canWalkOnFluid(state.getFluidState().getFluid())) {
+			if(this.canSwim() && this.entity.isTouchingWater()) {
 				while(true) {
-					if(state.getBlock() != Blocks.WATER && state.getFluidState() != Fluids.WATER.getStillFluidState(false)) {
+					if(state.getBlock() != Blocks.WATER && state.getFluidState() != Fluids.WATER.getStill(false)) {
 						--by;
 						break;
 					}
@@ -148,16 +150,16 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 					++by;
 					state = this.cachedWorld.getBlockState(checkPos.setPos(x, by, z));
 				}
-			} else if(this.entity.func_233570_aj_() || !this.startFromGround) {
+			} else if(this.entity.isOnGround() || !this.startFromGround) {
 				by = MathHelper.floor(y + Math.min(0.5D, Math.max(this.entity.getHeight() - 0.1f, 0.0D)));
 			} else {
 				BlockPos blockpos;
-				for(blockpos = this.entity.func_233580_cy_(); (this.cachedWorld.getBlockState(blockpos).isAir() || this.cachedWorld.getBlockState(blockpos).allowsMovement(this.cachedWorld, blockpos, PathType.LAND)) && blockpos.getY() > 0; blockpos = blockpos.down()) { }
+				for(blockpos = this.entity.getBlockPos(); (this.cachedWorld.getBlockState(blockpos).isAir() || this.cachedWorld.getBlockState(blockpos).allowsMovement(this.cachedWorld, blockpos, PathType.LAND)) && blockpos.getY() > 0; blockpos = blockpos.down()) { }
 
 				by = blockpos.up().getY();
 			}
 		} else {
-			while(this.entity.func_230285_a_(state.getFluidState().getFluid())) {
+			while(this.entity.canWalkOnFluid(state.getFluidState().getFluid())) {
 				++by;
 				state = this.cachedWorld.getBlockState(checkPos.setPos(x, by, z));
 			}
@@ -534,7 +536,7 @@ public class AdvancedLandPathNodeMaker extends LandPathNodeMaker {
 	}
 
 	protected boolean isTraversible(DirectionalPathNode from, DirectionalPathNode to) {
-		if(this.getCanSwim() && (from.nodeType == PathNodeType.WATER || from.nodeType == PathNodeType.WATER_BORDER || from.nodeType == PathNodeType.LAVA || to.nodeType == PathNodeType.WATER || to.nodeType == PathNodeType.WATER_BORDER || to.nodeType == PathNodeType.LAVA)) {
+		if(this.canSwim() && (from.nodeType == PathNodeType.WATER || from.nodeType == PathNodeType.WATER_BORDER || from.nodeType == PathNodeType.LAVA || to.nodeType == PathNodeType.WATER || to.nodeType == PathNodeType.WATER_BORDER || to.nodeType == PathNodeType.LAVA)) {
 			//When swimming it can always reach any side
 			return true;
 		}

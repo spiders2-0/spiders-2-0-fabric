@@ -11,6 +11,7 @@ import net.minecraft.entity.mob.SpiderEntity;
 //import net.minecraftforge.eventbus.api.SubscribeEvent;
 
 public class CommonEventHandlers {
+	/*
 	@SubscribeEvent
 	public static void onEntitySize(EntityEvent.Size event) {
 		Entity entity = event.getEntity();
@@ -21,4 +22,5 @@ public class CommonEventHandlers {
 			event.setNewSize(EntityDimensions.changing(0.95f, 0.85f));
 		}
 	}
+	*/
 }

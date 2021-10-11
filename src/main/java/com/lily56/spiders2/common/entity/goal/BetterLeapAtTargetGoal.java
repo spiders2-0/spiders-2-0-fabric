@@ -28,7 +28,7 @@ public class BetterLeapAtTargetGoal<T extends MobEntity & IClimberEntity> extend
 	}
 
 	@Override
-	public boolean shouldExecute() {
+	public boolean canStart() {
 		if(this.leaper.hasPassengers()) {
 			this.leapTarget = this.leaper.getTarget();
 
@@ -49,12 +49,12 @@ public class BetterLeapAtTargetGoal<T extends MobEntity & IClimberEntity> extend
 	}
 
 	@Override
-	public boolean shouldContinueExecuting() {
+	public boolean shouldContinue() {
 		return !this.leaper.isOnGround();
 	}
 
 	@Override
-	public void startExecuting() {
+	public void start() {
 		Vec3d motion = this.leaper.getVelocity();
 
 		Vec3d jumpVector = this.forwardJumpDirection;
@@ -82,10 +82,5 @@ public class BetterLeapAtTargetGoal<T extends MobEntity & IClimberEntity> extend
 		Vec3d diff = target.subtract(this.leaper.getPos());
 		Vec3d dot = up.multiply(up.dotProduct(diff));
 		return Triple.of(diff.subtract(dot), dot, up);
-	}
-
-	@Override
-	public boolean canStart() {
-		return false;
 	}
 }
