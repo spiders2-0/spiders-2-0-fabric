@@ -3,6 +3,7 @@ package com.lily56.spiders2.common.entity.movement;
 import java.util.HashSet;
 import java.util.Set;
 
+import net.minecraft.util.math.*;
 import org.jetbrains.annotations.Nullable;
 
 import net.minecraft.block.BlockState;
@@ -22,22 +23,18 @@ import net.minecraft.entity.ai.pathing.PathNodeNavigator;
 import net.minecraft.entity.ai.pathing.PathNodeType;
 import net.minecraft.entity.ai.pathing.NavigationType;
 
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.MathHelper;
 //import net.minecraft.util.math.shapes.ISelectionContext;
 import net.minecraft.block.ShapeContext;
 //import net.minecraft.util.math.shapes.VoxelShape;
 import net.minecraft.util.shape.VoxelShape;
-import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 import com.lily56.spiders2.common.entity.mob.IClimberEntity;
 
 
 public class AdvancedGroundPathNavigator<T extends MobEntity & IClimberEntity> extends MobNavigation {
-	protected AdvancedPathNodeNavigator pathFinder;
-	protected long lastTimeUpdated;
-	protected BlockPos targetPos;
+	protected AdvancedPathNodeNavigator pathNodeNavigator;
+	protected long lastRecalculateTime;
+	protected BlockPos currentTarget;
 
 	protected final T advancedPathFindingEntity;
 	protected final boolean checkObstructions;
@@ -62,32 +59,31 @@ public class AdvancedGroundPathNavigator<T extends MobEntity & IClimberEntity> e
 	}
 
 	public AdvancedPathNodeNavigator getAssignedPathFinder() {
-		return this.pathFinder;
+		return this.pathNodeNavigator;
 	}
 
 	@Override
-	protected final PathNodeNavigator getPathNodeNavigator(int maxExpansions) {
-		this.getPathNodeNavigator() = this.createPathFinder(maxExpansions);
-		this.nodeMaker = this.pathFinder.getNodeProcessor();
-		return this.pathFinder;
+	protected final PathNodeNavigator createPathNodeNavigator(int maxExpansions) {
+		this.pathNodeNavigator = this.createPathFinder(maxExpansions);
+		this.nodeMaker = this.pathNodeNavigator.getPathNodeMaker();
+		return this.pathNodeNavigator;
 	}
 
 	protected AdvancedPathNodeNavigator createPathFinder(int maxExpansions) {
 		AdvancedLandPathNodeMaker nodeMaker = new AdvancedLandPathNodeMaker();
-		nodeMaker.setCanEnterDoors(true);
+		nodeMaker.setCanEnterOpenDoors(true);
 		return new AdvancedPathNodeNavigator(nodeMaker, maxExpansions);
 	}
 
 	@Nullable
-	@Override
-	protected Path func_225464_a(Set<BlockPos> waypoints, int padding, boolean startAbove, int checkpointRange) {
+	protected Path findPathToAny(Set<BlockPos> waypoints, int padding, boolean startAbove, int checkpointRange) {
 		//Offset waypoints according to entity's size so that the lower AABB corner is at the offset waypoint and center is at the original waypoint
 		Set<BlockPos> adjustedWaypoints = new HashSet<>();
 		for(BlockPos pos : waypoints) {
 			adjustedWaypoints.add(pos.add(-MathHelper.ceil(this.entity.getWidth()) + 1, -MathHelper.ceil(this.entity.getHeight()) + 1, -MathHelper.ceil(this.entity.getWidth()) + 1));
 		}
 
-		Path path = super.func_225464_a(adjustedWaypoints, padding, startAbove, checkpointRange);
+		Path path = super.findPathTo(adjustedWaypoints, padding, startAbove, checkpointRange);
 
 		if(path != null && path.getTarget() != null) {
 			this.checkpointRange = checkpointRange;
@@ -97,25 +93,25 @@ public class AdvancedGroundPathNavigator<T extends MobEntity & IClimberEntity> e
 	}
 
 	@Override
-	public void updatePath() {
-		if(this.world.getGameTime() - this.lastTimeUpdated > 20L) {
-			if(this.targetPos != null) {
+	public void recalculatePath() {
+		if(this.world.getTime() - this.lastRecalculateTime > 20L) {
+			if(this.currentTarget != null) {
 				this.currentPath = null;
-				this.currentPath = this.getPathToPos(this.targetPos, this.checkpointRange);
-				this.lastTimeUpdated = this.world.getGameTime();
-				this.tryUpdatePath = false;
+				this.currentPath = this.findPathTo(this.currentTarget, this.checkpointRange);
+				this.lastRecalculateTime = this.world.getTime();
+				this.shouldRecalculate = false;
 			}
 		} else {
-			this.tryUpdatePath = true;
+			this.shouldRecalculate = true;
 		}
 	}
 
 	@Override
-	protected void checkForStuck(Vec3d entityPos) {
-		super.checkForStuck(entityPos);
+	protected void checkTimeouts(Vec3d entityPos) {
+		super.checkTimeouts(entityPos);
 
 		if(this.checkObstructions && this.currentPath != null && !this.currentPath.isFinished()) {
-			Vec3d target = this.currentPath.getVectorFromIndex(this.advancedPathFindingEntity, Math.min(this.currentPath.getCurrentPathLength() - 1, this.currentPath.getCurrentPathIndex() + 0));
+			Vec3d target = this.currentPath.getNodePosition(this.advancedPathFindingEntity, Math.min(this.currentPath.getLength() - 1, this.currentPath.getCurrentNodeIndex() + 0));
 			Vec3d diff = target.subtract(entityPos);
 
 			int axis = 0;
@@ -161,11 +157,11 @@ public class AdvancedGroundPathNavigator<T extends MobEntity & IClimberEntity> e
 			}
 
 			Vec3d facingDiff = checkPos.subtract(entityPos.add(0, axis == 1 ? this.entity.getHeight() / 2 : 0, 0));
-			Direction facing = Direction.getFacingFromVector((float)facingDiff.x, (float)facingDiff.y, (float)facingDiff.z);
+			Direction facing = Direction.getFacing((float)facingDiff.x, (float)facingDiff.y, (float)facingDiff.z);
 
 			boolean blocked = false;
 
-			AxisAlignedBB checkBox = this.advancedPathFindingEntity.getBoundingBox().expand(Math.signum(diff.x) * 0.2D, Math.signum(diff.y) * 0.2D, Math.signum(diff.z) * 0.2D);
+			Box checkBox = this.advancedPathFindingEntity.getBoundingBox().expand(Math.signum(diff.x) * 0.2D, Math.signum(diff.y) * 0.2D, Math.signum(diff.z) * 0.2D);
 
 			loop: for(int yo = 0; yo < height; yo++) {
 				for(int xzo = -ceilHalfWidth; xzo <= ceilHalfWidth; xzo++) {
@@ -173,13 +169,13 @@ public class AdvancedGroundPathNavigator<T extends MobEntity & IClimberEntity> e
 
 					BlockState state = this.advancedPathFindingEntity.world.getBlockState(pos);
 
-					PathNodeType nodeType = state.allowsMovement(this.advancedPathFindingEntity.world, pos, NavigationType.LAND) ? PathNodeType.OPEN : PathNodeType.BLOCKED;
+					PathNodeType nodeType = state.canPathfindThrough(this.advancedPathFindingEntity.world, pos, NavigationType.LAND) ? PathNodeType.OPEN : PathNodeType.BLOCKED;
 
 					if(nodeType == PathNodeType.BLOCKED) {
-						VoxelShape collisionShape = state.getShape(this.advancedPathFindingEntity.world, pos, ShapeContext.forEntity(this.advancedPathFindingEntity)).withOffset(pos.getX(), pos.getY(), pos.getZ());
+						VoxelShape collisionShape = state.getOutlineShape(this.advancedPathFindingEntity.world, pos, ShapeContext.of(this.advancedPathFindingEntity)).offset(pos.getX(), pos.getY(), pos.getZ());
 
 						//TODO Use ILineConsumer
-						if(collisionShape != null && collisionShape.toBoundingBoxList().stream().anyMatch(aabb -> aabb.intersects(checkBox))) {
+						if(collisionShape != null && collisionShape.getBoundingBoxes().stream().anyMatch(box -> box.intersects(checkBox))) {
 							blocked = true;
 							break loop;
 						}

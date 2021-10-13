@@ -33,8 +33,6 @@ import net.minecraft.pathfinding.PathPoint;
 import net.minecraft.world.Region;
  */
 
-
-
 public class CustomPathNodeNavigator extends PathNodeNavigator {
 	private final PathMinHeap path = new PathMinHeap();
 	private final PathNode[] pathOptions = new PathNode[32];
@@ -42,8 +40,8 @@ public class CustomPathNodeNavigator extends PathNodeNavigator {
 
 	private int maxExpansions = 200;
 
-	public static interface Heuristic {
-		public float compute(PathNode start, PathNode end, boolean isTargetHeuristic);
+	public interface Heuristic {
+		float compute(PathNode start, PathNode end, boolean isTargetHeuristic);
 	}
 
 	public static final Heuristic DEFAULT_HEURISTIC = (start, end, isTargetHeuristic) -> start.getManhattanDistance(end); //distanceManhattan
@@ -72,7 +70,7 @@ public class CustomPathNodeNavigator extends PathNodeNavigator {
 
 	@Nullable
 	public Path NewPath(ChunkCache region, MobEntity entity, Set<BlockPos> checkpoints, float maxDistance, int checkpointRange, float maxExpansionsMultiplier) {
-		this.path.clearPath();
+		this.path.clear();
 
 		this.PathNodeMaker.init(region, entity);
 
@@ -80,7 +78,7 @@ public class CustomPathNodeNavigator extends PathNodeNavigator {
 
 		//Create a checkpoint for each block pos in the checkpoints set
 		Map<TargetPathNode, BlockPos> checkpointsMap = checkpoints.stream().collect(Collectors.toMap((pos) -> {
-			return this.PathNodeMaker.func_224768_a(pos.getX(), pos.getY(), pos.getZ());
+			return this.PathNodeMaker.getNode(pos.getX(), pos.getY(), pos.getZ());
 		}, Function.identity()));
 
 		Path path = this.findPath(pathnode, checkpointsMap, maxDistance, checkpointRange, maxExpansionsMultiplier);
@@ -95,25 +93,25 @@ public class CustomPathNodeNavigator extends PathNodeNavigator {
 	private Path findPath(PathNode start, Map<TargetPathNode, BlockPos> checkpointsMap, float maxDistance, int checkpointRange, float maxExpansionsMultiplier) {
 		Set<TargetPathNode> checkpoints = checkpointsMap.keySet();
 
-		start.totalPathDistance = 0.0F;
-		start.distanceToNext = this.computeHeuristic(start, checkpoints);
-		start.distanceToTarget = start.distanceToNext;
+		start.penalizedPathLength = 0.0F;
+		start.distanceToNearestTarget = this.computeHeuristic(start, checkpoints);
+		start.heapWeight = start.distanceToNearestTarget;
 
-		this.path.clearPath();
-		this.path.addPoint(start);
+		this.path.clear();
+		this.path.push(start);
 
 		Set<TargetPathNode> reachedCheckpoints = Sets.newHashSetWithExpectedSize(checkpoints.size());
 
 		int expansions = 0;
 		int maxExpansions = (int) (this.maxExpansions * maxExpansionsMultiplier);
 
-		while(!this.path.isPathEmpty() && ++expansions < maxExpansions) {
-			PathNode openPathPoint = this.path.dequeue();
+		while(!this.path.isEmpty() && ++expansions < maxExpansions) {
+			PathNode openPathPoint = this.path.pop();
 			openPathPoint.visited = true;
 
 			for(TargetPathNode checkpoint : checkpoints) {
-				if(openPathPoint.func_224757_c(checkpoint) <= checkpointRange) {
-					checkpoint.func_224764_e();
+				if(openPathPoint.getManhattanDistance(checkpoint) <= checkpointRange) {
+					checkpoint.markReached();
 					reachedCheckpoints.add(checkpoint);
 				}
 			}
@@ -122,32 +120,32 @@ public class CustomPathNodeNavigator extends PathNodeNavigator {
 				break;
 			}
 
-			if(openPathPoint.distanceTo(start) < maxDistance) {
-				int numOptions = this.PathNodeMaker.func_222859_a(this.pathOptions, openPathPoint);
+			if(openPathPoint.getDistance(start) < maxDistance) {
+				int numOptions = this.PathNodeMaker.getSuccessors(this.pathOptions, openPathPoint);
 
 				for(int i = 0; i < numOptions; ++i) {
 					PathNode successorPathPoint = this.pathOptions[i];
 
-					float costHeuristic = openPathPoint.distanceTo(successorPathPoint); //TODO Replace with cost heuristic
+					float costHeuristic = openPathPoint.getDistance(successorPathPoint); //TODO Replace with cost heuristic
 
-					//field_222861_j corresponds to the total path cost of the evaluation function
-					successorPathPoint.field_222861_j = openPathPoint.field_222861_j + costHeuristic;
+					//pathLength corresponds to the total path cost of the evaluation function
+					successorPathPoint.pathLength = openPathPoint.pathLength + costHeuristic;
 
-					float totalSuccessorPathCost = openPathPoint.totalPathDistance + costHeuristic + successorPathPoint.costMalus;
+					float totalSuccessorPathCost = openPathPoint.penalizedPathLength + costHeuristic + successorPathPoint.penalty;
 
-					if(successorPathPoint.field_222861_j < maxDistance && (!successorPathPoint.isAssigned() || totalSuccessorPathCost < successorPathPoint.totalPathDistance)) {
+					if(successorPathPoint.pathLength < maxDistance && (!successorPathPoint.isInHeap() || totalSuccessorPathCost < successorPathPoint.penalizedPathLength)) {
 						successorPathPoint.previous = openPathPoint;
-						successorPathPoint.totalPathDistance = totalSuccessorPathCost;
+						successorPathPoint.penalizedPathLength = totalSuccessorPathCost;
 
-						//distanceToNext corresponds to the heuristic part of the evaluation function
-						successorPathPoint.distanceToNext = this.computeHeuristic(successorPathPoint, checkpoints) * 1.0f; //TODO Vanilla's 1.5 multiplier is too greedy :( Move to custom heuristic stuff
+						//distanceToNearestTarget corresponds to the heuristic part of the evaluation function
+						successorPathPoint.distanceToNearestTarget = this.computeHeuristic(successorPathPoint, checkpoints) * 1.0f; //TODO Vanilla's 1.5 multiplier is too greedy :( Move to custom heuristic stuff
 
-						if(successorPathPoint.isAssigned()) {
-							this.path.changeDistance(successorPathPoint, successorPathPoint.totalPathDistance + successorPathPoint.distanceToNext);
+						if(successorPathPoint.isInHeap()) {
+							this.path.setNodeWeight(successorPathPoint, successorPathPoint.penalizedPathLength + successorPathPoint.distanceToNearestTarget);
 						} else {
-							//distanceToTarget corresponds to the evaluation function, i.e. total path cost + heuristic
-							successorPathPoint.distanceToTarget = successorPathPoint.totalPathDistance + successorPathPoint.distanceToNext;
-							this.path.addPoint(successorPathPoint);
+							//heapWeight corresponds to the evaluation function, i.e. total path cost + heuristic
+							successorPathPoint.heapWeight = successorPathPoint.penalizedPathLength + successorPathPoint.distanceToNearestTarget;
+							this.path.push(successorPathPoint);
 						}
 					}
 				}
@@ -157,15 +155,15 @@ public class CustomPathNodeNavigator extends PathNodeNavigator {
 		Optional<Path> path;
 
 		if(!reachedCheckpoints.isEmpty()) {
-			//Use shortest path towards next reached checkpoint
+			//Use the shortest path towards the next reachable checkpoint
 			path = reachedCheckpoints.stream().map((checkpoint) -> {
-				return this.createPath(checkpoint.func_224763_d(), checkpointsMap.get(checkpoint), true);
-			}).min(Comparator.comparingInt(Path::getCurrentPathLength));
+				return this.createPath(checkpoint.getNearestNode(), checkpointsMap.get(checkpoint), true);
+			}).min(Comparator.comparingInt(Path::getLength));
 		} else {
-			//Use lowest cost path towards any checkpoint
+			//Use the path with the lowest cost towards any checkpoint
 			path = checkpoints.stream().map((checkpoint) -> {
-				return this.createPath(checkpoint.func_224763_d(), checkpointsMap.get(checkpoint), false);
-			}).min(Comparator.comparingDouble(Path::func_224769_l /*TODO Replace calculation with cost heuristic*/).thenComparingInt(Path::getCurrentPathLength));
+				return this.createPath(checkpoint.getNearestNode(), checkpointsMap.get(checkpoint), false);
+			}).min(Comparator.comparingDouble(Path::getManhattanDistanceFromTarget /*TODO Replace calculation with cost heuristic*/).thenComparingInt(Path::getLength));
 		}
 
 		return !path.isPresent() ? null : path.get();
@@ -175,8 +173,8 @@ public class CustomPathNodeNavigator extends PathNodeNavigator {
 		float minDst = Float.MAX_VALUE;
 
 		for(TargetPathNode checkpoint : checkpoints) {
-			float dst = pathPoint.distanceTo(checkpoint); //TODO Replace with target heuristic
-			checkpoint.func_224761_a(dst, pathPoint);
+			float dst = pathPoint.getDistance(checkpoint); //TODO Replace with target heuristic
+			checkpoint.updateNearestNode(dst, pathPoint);
 			minDst = Math.min(dst, minDst);
 		}
 

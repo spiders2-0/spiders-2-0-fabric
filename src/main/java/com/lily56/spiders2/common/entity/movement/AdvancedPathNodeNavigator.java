@@ -197,10 +197,10 @@ public class AdvancedPathNodeNavigator extends CustomPathNodeNavigator {
 
 						} else if(nextSide.getAxis() != currentSide.getAxis()) {
 
-							//Allow movement around corners, but insert new point with transitional side inbetween
+							//Allow movement around corners, but insert new point with transitional side in between
 
 							Node intermediary;
-							if(Math.abs(currentSide.getOffsetX()) == adx && Math.abs(currentSide.getOffsetY()) == ady && Math.abs(currentSide.getZOffset()) == adz) {
+							if(Math.abs(currentSide.getOffsetX()) == adx && Math.abs(currentSide.getOffsetY()) == ady && Math.abs(currentSide.getOffsetZ()) == adz) {
 								intermediary = new Node(current, current.PathNode.assignPathSide(nextSide));
 							} else {
 								intermediary = new Node(current, next.assignPathSide(currentSide));
@@ -212,7 +212,7 @@ public class AdvancedPathNodeNavigator extends CustomPathNodeNavigator {
 					} else if(d == 2) {
 						//Diagonal
 
-						int currentSidePlaneMatch = (currentSide.getOffsetX() == -dx ? 1 : 0) + (currentSide.getOffsetY() == -dy ? 1 : 0) + (currentSide.getZOffset() == -dz ? 1 : 0);
+						int currentSidePlaneMatch = (currentSide.getOffsetX() == -dx ? 1 : 0) + (currentSide.getOffsetY() == -dy ? 1 : 0) + (currentSide.getOffsetZ() == -dz ? 1 : 0);
 
 						if(currentSide == nextSide && currentSidePlaneMatch == 0) {
 
@@ -220,19 +220,19 @@ public class AdvancedPathNodeNavigator extends CustomPathNodeNavigator {
 							nextNode = new Node(current, next.assignPathSide(nextSide));
 
 						} else {
-							//Allow movement, but insert new point with transitional side inbetween
+							//Allow movement, but insert new point with transitional side in between
 
 							Node intermediary = null;
 							if(currentSidePlaneMatch == 2) {
 								for(Direction intermediarySide : getPathableSidesWithFallback(current.PathNode)) {
-									if(intermediarySide != currentSide && (intermediarySide.getOffsetX() == dx ? 1 : 0) + (intermediarySide.getOffsetY() == dy ? 1 : 0) + (intermediarySide.getZOffset() == dz ? 1 : 0) == 2) {
+									if(intermediarySide != currentSide && (intermediarySide.getOffsetX() == dx ? 1 : 0) + (intermediarySide.getOffsetY() == dy ? 1 : 0) + (intermediarySide.getOffsetZ() == dz ? 1 : 0) == 2) {
 										intermediary = new Node(current, current.PathNode.assignPathSide(intermediarySide));
 										break;
 									}
 								}
 							} else {
 								for(Direction intermediarySide : getPathableSidesWithFallback(next)) {
-									if(intermediarySide != nextSide && (intermediarySide.getOffsetX() == -dx ? 1 : 0) + (intermediarySide.getOffsetY() == -dy ? 1 : 0) + (intermediarySide.getZOffset() == -dz ? 1 : 0) == 2) {
+									if(intermediarySide != nextSide && (intermediarySide.getOffsetX() == -dx ? 1 : 0) + (intermediarySide.getOffsetY() == -dy ? 1 : 0) + (intermediarySide.getOffsetZ() == -dz ? 1 : 0) == 2) {
 										intermediary = new Node(current, next.assignPathSide(intermediarySide));
 										break;
 									}

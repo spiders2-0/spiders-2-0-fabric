@@ -3,7 +3,6 @@ package com.lily56.spiders2.common.entity.movement;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.ai.pathing.Path;
-import net.minecraft.entity.ai.pathing.EntityNavigation;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import com.lily56.spiders2.common.entity.mob.IClimberEntity;
@@ -18,20 +17,20 @@ public class BetterSpiderEntityNavigation<T extends MobEntity & IClimberEntity> 
 	}
 
 	@Override
-	public Path getPathToPos(BlockPos pos, int pos2) {
+	public Path findPathTo(BlockPos pos, int pos2) {
 		this.targetPosition = pos;
-		return super.getPathToPos(pos, pos2);
+		return super.findPathTo(pos, pos2);
 	}
 
 	@Override
-	public Path getPathToEntity(Entity entityIn, int path2) {
+	public Path findPathTo(Entity entityIn, int path2) {
 		this.targetPosition = entityIn.getBlockPos();
-		return super.getPathToEntity(entityIn, path2);
+		return super.findPathTo(entityIn, path2);
 	}
 
 	@Override
-	public boolean tryMoveToEntityLiving(Entity entityIn, double speed) {
-		Path path = this.getPathToEntity(entityIn, 0);
+	public boolean startMovingTo(Entity entityIn, double speed) {
+		Path path = this.findPathTo(entityIn, 0);
 		if(path != null) {
 			return this.startMovingAlong(path, speed);
 		} else {
